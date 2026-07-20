@@ -346,12 +346,12 @@ function ColumnContainer({
         transition,
         opacity: isDragging ? 0.5 : 1,
       }}
-      className="flex max-h-full w-72 shrink-0 snap-start flex-col overflow-hidden rounded-xl bg-list text-list-foreground shadow-sm"
+      className="flex max-h-full w-72 shrink-0 snap-start flex-col rounded-xl bg-list text-list-foreground shadow-sm"
     >
       <div
         {...attributes}
         {...listeners}
-        className={`flex cursor-grab items-center gap-1 px-2 py-2 active:cursor-grabbing ${
+        className={`flex cursor-grab items-center gap-1 rounded-t-xl px-2 py-2 active:cursor-grabbing ${
           column.color ? LABEL_COLOR_CLASSES[column.color as keyof typeof LABEL_COLOR_CLASSES] : ""
         }`}
       >
