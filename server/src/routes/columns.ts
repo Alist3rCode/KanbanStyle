@@ -1,13 +1,14 @@
 import { Router } from "express";
 import { db } from "../db.js";
 import { logActivity } from "../activity.js";
+import { isLabelColor } from "./labels.js";
 
 export const columnsRouter = Router();
 
 columnsRouter.get("/boards/:boardId/columns", (req, res) => {
   const columns = db
     .prepare(
-      "SELECT id, board_id, title, position, is_closing_column FROM columns WHERE board_id = ? ORDER BY position, id",
+      "SELECT id, board_id, title, position, is_closing_column, color FROM columns WHERE board_id = ? ORDER BY position, id",
     )
     .all(req.params.boardId) as { is_closing_column: number }[];
   // SQLite has no real boolean — cast the raw 0/1 so the client gets a true JS boolean.
@@ -33,20 +34,29 @@ columnsRouter.post("/boards/:boardId/columns", (req, res) => {
     title,
     position,
     is_closing_column: false,
+    color: null,
   });
 });
 
 columnsRouter.patch("/columns/:id", (req, res) => {
-  const { title, position, is_closing_column } = req.body as {
+  const { title, position, is_closing_column, color } = req.body as {
     title?: string;
     position?: number;
     is_closing_column?: boolean;
+    color?: string | null;
   };
+  if (color !== undefined && color !== null && !isLabelColor(color)) {
+    res.status(400).json({ error: "color doit être une couleur valide" });
+    return;
+  }
   if (title !== undefined) {
     db.prepare("UPDATE columns SET title = ? WHERE id = ?").run(title, req.params.id);
   }
   if (position !== undefined) {
     db.prepare("UPDATE columns SET position = ? WHERE id = ?").run(position, req.params.id);
+  }
+  if (color !== undefined) {
+    db.prepare("UPDATE columns SET color = ? WHERE id = ?").run(color, req.params.id);
   }
   if (is_closing_column !== undefined) {
     const closed = is_closing_column ? 1 : 0;

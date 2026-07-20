@@ -60,7 +60,7 @@ customFieldsRouter.post("/boards/:boardId/custom-fields", (req, res) => {
       position,
       link_prefix?.trim() || null,
       resolvedDefaultValue,
-      show_on_card ?? "never",
+      show_on_card ?? "if_not_empty",
     );
   res.status(201).json({
     id: info.lastInsertRowid,
@@ -70,7 +70,7 @@ customFieldsRouter.post("/boards/:boardId/custom-fields", (req, res) => {
     position,
     link_prefix: link_prefix?.trim() || null,
     default_value: resolvedDefaultValue,
-    show_on_card: show_on_card ?? "never",
+    show_on_card: show_on_card ?? "if_not_empty",
   });
 });
 
@@ -190,7 +190,7 @@ customFieldsRouter.post("/cards/:cardId/custom-fields", (req, res) => {
   // Checklists store a JSON array of items, not free text — a new field always starts empty.
   const resolvedValue = field_type === "checklist" ? "[]" : value ?? "";
   const insertField = db.prepare(
-    "INSERT INTO custom_fields (board_id, card_id, name, field_type, position, link_prefix, default_value, show_on_card) VALUES (?, ?, ?, ?, 0, ?, '', 'never')",
+    "INSERT INTO custom_fields (board_id, card_id, name, field_type, position, link_prefix, default_value, show_on_card) VALUES (?, ?, ?, ?, 0, ?, '', 'if_not_empty')",
   );
   const insertValue = db.prepare(
     "INSERT INTO field_values (card_id, custom_field_id, value) VALUES (?, ?, ?)",
@@ -213,7 +213,7 @@ customFieldsRouter.post("/cards/:cardId/custom-fields", (req, res) => {
     name: name.trim(),
     field_type,
     link_prefix: link_prefix?.trim() || null,
-    show_on_card: "never",
+    show_on_card: "if_not_empty",
     value: resolvedValue,
   });
 });

@@ -33,7 +33,7 @@ export function BoardTemplatePage({
   const [fieldType, setFieldType] = useState<FieldType>("text");
   const [linkPrefix, setLinkPrefix] = useState("");
   const [defaultValue, setDefaultValue] = useState("");
-  const [showOnCard, setShowOnCard] = useState<ShowOnCard>("never");
+  const [showOnCard, setShowOnCard] = useState<ShowOnCard>("if_not_empty");
 
   useEffect(() => {
     customFieldsApi.list(boardId).then(setFields);
@@ -62,7 +62,7 @@ export function BoardTemplatePage({
     setName("");
     setLinkPrefix("");
     setDefaultValue("");
-    setShowOnCard("never");
+    setShowOnCard("if_not_empty");
   }
 
   async function handleDelete(id: number) {
@@ -73,6 +73,18 @@ export function BoardTemplatePage({
   async function handleDefaultValueChange(id: number, value: string) {
     setFields((prev) => prev.map((f) => (f.id === id ? { ...f, default_value: value } : f)));
     await customFieldsApi.setDefaultValue(id, value);
+  }
+
+  async function handleRename(id: number, value: string) {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    setFields((prev) => prev.map((f) => (f.id === id ? { ...f, name: trimmed } : f)));
+    await customFieldsApi.rename(id, trimmed);
+  }
+
+  async function handleLinkPrefixChange(id: number, value: string) {
+    setFields((prev) => prev.map((f) => (f.id === id ? { ...f, link_prefix: value } : f)));
+    await customFieldsApi.setLinkPrefix(id, value);
   }
 
   async function handleShowOnCardChange(id: number, value: ShowOnCard) {
@@ -125,15 +137,21 @@ export function BoardTemplatePage({
                 className="flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center"
               >
                 <div className="flex flex-1 flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium">{field.name}</span>
+                  <input
+                    className={`w-36 font-medium ${inputClass}`}
+                    defaultValue={field.name}
+                    onBlur={(e) => handleRename(field.id, e.currentTarget.value)}
+                  />
                   <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                     {FIELD_TYPE_LABELS[field.field_type]}
                   </span>
-                  {field.link_prefix && (
-                    <span className="truncate text-xs text-muted-foreground">
-                      {field.link_prefix}
-                      {"{{suffixe}}"}
-                    </span>
+                  {field.field_type === "link" && (
+                    <input
+                      className={`w-44 text-xs ${inputClass}`}
+                      placeholder="Préfixe d'URL, ex: https://.../browse/"
+                      defaultValue={field.link_prefix ?? ""}
+                      onBlur={(e) => handleLinkPrefixChange(field.id, e.currentTarget.value)}
+                    />
                   )}
                 </div>
                 {field.field_type !== "checklist" && (

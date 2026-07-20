@@ -38,6 +38,25 @@ export const LABEL_COLOR_CLASSES: Record<LabelColor, string> = {
   gray: "bg-gray-500",
 };
 
+/**
+ * Text color that keeps good contrast against each LABEL_COLOR_CLASSES background
+ * (WCAG-ish YIQ brightness split — yellow/sky/lime are light enough to need dark
+ * text, the rest read fine in white). Used wherever a color tints a whole surface
+ * (column headers, the card status badge), not just small label pills.
+ */
+export const LABEL_TEXT_CLASSES: Record<LabelColor, string> = {
+  green: "text-white",
+  yellow: "text-slate-900",
+  orange: "text-white",
+  red: "text-white",
+  purple: "text-white",
+  blue: "text-white",
+  sky: "text-slate-900",
+  lime: "text-slate-900",
+  pink: "text-white",
+  gray: "text-white",
+};
+
 export interface Label {
   id: number;
   board_id: number;
