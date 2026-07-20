@@ -28,9 +28,10 @@ import {
 } from "lucide-react";
 import { columnsApi, type Column } from "@/lib/columns";
 import { cardsApi, dueStatus, type Card } from "@/lib/cards";
-import { customFieldsApi } from "@/lib/customFields";
+import { customFieldsApi, type FieldType } from "@/lib/customFields";
 import { labelsApi, LABEL_COLOR_CLASSES, type Label } from "@/lib/labels";
 import { authApi } from "@/lib/auth";
+import { checklistProgress } from "@/lib/checklist";
 import { CardEditor } from "@/components/CardEditor";
 import { TopBar, topBarButtonClass } from "@/components/TopBar";
 
@@ -46,7 +47,7 @@ function CardItem({
 }: {
   card: Card;
   labels: { id: number; name: string; color: string }[];
-  visibleFields: { name: string; value: string }[];
+  visibleFields: { name: string; field_type: FieldType; value: string }[];
   onOpen: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -81,12 +82,23 @@ function CardItem({
       <p className="whitespace-pre-wrap break-words">{card.title}</p>
       {visibleFields.length > 0 && (
         <div className="mt-1.5 flex flex-col gap-0.5">
-          {visibleFields.map((field) => (
-            <p key={field.name} className="truncate text-xs text-muted-foreground">
-              <span className="font-medium">{field.name}:</span>{" "}
-              {field.value || <span className="italic">vide</span>}
-            </p>
-          ))}
+          {visibleFields.map((field) => {
+            if (field.field_type === "checklist") {
+              const { done, total } = checklistProgress(field.value);
+              return (
+                <p key={field.name} className="truncate text-xs text-muted-foreground">
+                  <span className="font-medium">{field.name}:</span>{" "}
+                  {total > 0 ? `${done}/${total}` : <span className="italic">vide</span>}
+                </p>
+              );
+            }
+            return (
+              <p key={field.name} className="truncate text-xs text-muted-foreground">
+                <span className="font-medium">{field.name}:</span>{" "}
+                {field.value || <span className="italic">vide</span>}
+              </p>
+            );
+          })}
         </div>
       )}
       {(card.closed || card.has_attachments || card.due_date) && (
@@ -191,7 +203,7 @@ function ColumnContainer({
 }: {
   column: ColumnWithCards;
   visibleCards: Card[];
-  visibleFieldsByCard: Map<number, { name: string; value: string }[]>;
+  visibleFieldsByCard: Map<number, { name: string; field_type: FieldType; value: string }[]>;
   cardLabelsByCard: Map<number, { id: number; name: string; color: string }[]>;
   onRename: (title: string) => void;
   onToggleClosingRule: (value: boolean) => void;
@@ -352,7 +364,7 @@ export function BoardView({
   const [onlyWithAttachments, setOnlyWithAttachments] = useState(false);
   const [fieldValuesByCard, setFieldValuesByCard] = useState<Map<number, string[]>>(new Map());
   const [visibleFieldsByCard, setVisibleFieldsByCard] = useState<
-    Map<number, { name: string; value: string }[]>
+    Map<number, { name: string; field_type: FieldType; value: string }[]>
   >(new Map());
   const [boardLabels, setBoardLabels] = useState<Label[]>([]);
   const [cardLabelsByCard, setCardLabelsByCard] = useState<
@@ -372,14 +384,17 @@ export function BoardView({
 
       const values = await customFieldsApi.fieldValuesForBoard(boardId);
       const searchByCard = new Map<number, string[]>();
-      const visibleByCard = new Map<number, { name: string; value: string }[]>();
-      for (const { card_id, name, show_on_card, value } of values) {
+      const visibleByCard = new Map<number, { name: string; field_type: FieldType; value: string }[]>();
+      for (const { card_id, name, field_type, show_on_card, value } of values) {
         if (value) {
           searchByCard.set(card_id, [...(searchByCard.get(card_id) ?? []), value]);
         }
         const shouldShow = show_on_card === "always" || (show_on_card === "if_not_empty" && value);
         if (shouldShow) {
-          visibleByCard.set(card_id, [...(visibleByCard.get(card_id) ?? []), { name, value }]);
+          visibleByCard.set(card_id, [
+            ...(visibleByCard.get(card_id) ?? []),
+            { name, field_type, value },
+          ]);
         }
       }
       setFieldValuesByCard(searchByCard);

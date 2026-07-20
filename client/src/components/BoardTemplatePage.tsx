@@ -136,12 +136,14 @@ export function BoardTemplatePage({
                     </span>
                   )}
                 </div>
-                <input
-                  className={`w-full sm:w-48 ${inputClass}`}
-                  placeholder="Valeur par défaut"
-                  defaultValue={field.default_value}
-                  onBlur={(e) => handleDefaultValueChange(field.id, e.currentTarget.value)}
-                />
+                {field.field_type !== "checklist" && (
+                  <input
+                    className={`w-full sm:w-48 ${inputClass}`}
+                    placeholder="Valeur par défaut"
+                    defaultValue={field.default_value}
+                    onBlur={(e) => handleDefaultValueChange(field.id, e.currentTarget.value)}
+                  />
+                )}
                 <div className="flex items-center gap-1 self-end sm:self-auto">
                   <ShowOnCardToggle
                     value={field.show_on_card}
