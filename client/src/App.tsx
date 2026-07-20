@@ -5,8 +5,15 @@ import { useTheme } from "@/lib/theme";
 import { Button } from "@/components/ui/button";
 import { LoginForm } from "@/components/LoginForm";
 import { SettingsPage } from "@/components/SettingsPage";
+import { BoardView } from "@/components/BoardView";
 
-function BoardsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
+function BoardsPage({
+  onOpenSettings,
+  onOpenBoard,
+}: {
+  onOpenSettings: () => void;
+  onOpenBoard: (board: Board) => void;
+}) {
   const [boards, setBoards] = useState<Board[]>([]);
   const [newTitle, setNewTitle] = useState("");
 
@@ -68,6 +75,9 @@ function BoardsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
               defaultValue={board.title}
               onBlur={(e) => handleRename(board.id, e.currentTarget.value)}
             />
+            <Button variant="outline" onClick={() => onOpenBoard(board)}>
+              Ouvrir
+            </Button>
             <Button variant="ghost" onClick={() => handleDelete(board.id)}>
               Supprimer
             </Button>
@@ -83,7 +93,8 @@ function BoardsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
 
 function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
-  const [view, setView] = useState<"boards" | "settings">("boards");
+  const [view, setView] = useState<"boards" | "settings" | "board">("boards");
+  const [openBoard, setOpenBoard] = useState<Board | null>(null);
   const { theme, setTheme } = useTheme();
 
   useEffect(() => {
@@ -97,7 +108,20 @@ function App() {
   if (view === "settings") {
     return <SettingsPage theme={theme} setTheme={setTheme} onBack={() => setView("boards")} />;
   }
-  return <BoardsPage onOpenSettings={() => setView("settings")} />;
+  if (view === "board" && openBoard) {
+    return (
+      <BoardView boardId={openBoard.id} boardTitle={openBoard.title} onBack={() => setView("boards")} />
+    );
+  }
+  return (
+    <BoardsPage
+      onOpenSettings={() => setView("settings")}
+      onOpenBoard={(board) => {
+        setOpenBoard(board);
+        setView("board");
+      }}
+    />
+  );
 }
 
 export default App;
