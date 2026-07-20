@@ -82,4 +82,18 @@ export const customFieldsApi = {
   valuesForCard: (cardId: number) => api.get<CardFieldValue[]>(`/cards/${cardId}/field-values`),
   setValueForCard: (cardId: number, customFieldId: number, value: string) =>
     api.put<void>(`/cards/${cardId}/field-values/${customFieldId}`, { value }),
+  /** Creates a field scoped to this card only — never appears on other cards. */
+  createForCard: (
+    cardId: number,
+    name: string,
+    field_type: FieldType,
+    link_prefix?: string,
+    value?: string,
+  ) =>
+    api.post<CardFieldValue>(`/cards/${cardId}/custom-fields`, {
+      name,
+      field_type,
+      link_prefix,
+      value,
+    }),
 };

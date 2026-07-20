@@ -67,11 +67,11 @@ function CardItem({
       className="group cursor-pointer rounded-lg border border-border/60 bg-card px-3 py-2 text-sm text-card-foreground shadow-sm transition hover:border-primary/40 hover:shadow-md"
     >
       {labels.length > 0 && (
-        <div className="mb-1 flex flex-wrap gap-1">
+        <div className="mb-1.5 flex flex-wrap gap-1">
           {labels.map((label) => (
             <span
               key={label.id}
-              className={`h-2 w-8 rounded-full ${LABEL_COLOR_CLASSES[label.color as keyof typeof LABEL_COLOR_CLASSES]}`}
+              className={`h-[3px] w-8 rounded-sm ${LABEL_COLOR_CLASSES[label.color as keyof typeof LABEL_COLOR_CLASSES]}`}
               title={label.name}
             />
           ))}
@@ -693,8 +693,12 @@ export function BoardView({
       {editingCard && (
         <CardEditor
           card={editingCard}
+          boardId={boardId}
           onClose={() => setEditingCard(null)}
           onRename={(title) => handleRenameCard(editingCard.id, title)}
+          onLabelsChange={(labels) =>
+            setCardLabelsByCard((prev) => new Map(prev).set(editingCard.id, labels))
+          }
         />
       )}
     </div>

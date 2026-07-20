@@ -8,6 +8,7 @@ import {
   LayoutList,
   Link2,
   Paperclip,
+  Plus,
   Tag,
   Trash2,
   Upload,
@@ -16,16 +17,44 @@ import {
 import { cardsApi, type Card } from "@/lib/cards";
 import { attachmentsApi, type Attachment } from "@/lib/attachments";
 import { jiraApi } from "@/lib/jira";
-import { customFieldsApi, type CardFieldValue, type ShowOnCard } from "@/lib/customFields";
-import { labelsApi, LABEL_COLOR_CLASSES, type CardLabelOption } from "@/lib/labels";
+import {
+  customFieldsApi,
+  FIELD_TYPE_LABELS,
+  type CardFieldValue,
+  type FieldType,
+  type ShowOnCard,
+} from "@/lib/customFields";
+import {
+  labelsApi,
+  LABEL_COLORS,
+  LABEL_COLOR_CLASSES,
+  type CardLabelOption,
+  type LabelColor,
+} from "@/lib/labels";
 import { ShowOnCardToggle } from "@/components/ShowOnCardToggle";
 
-function LabelsSection({ cardId }: { cardId: number }) {
+function LabelsSection({
+  cardId,
+  boardId,
+  onLabelsChange,
+}: {
+  cardId: number;
+  boardId: number;
+  onLabelsChange: (labels: { id: number; name: string; color: string }[]) => void;
+}) {
   const [labels, setLabels] = useState<CardLabelOption[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newColor, setNewColor] = useState<LabelColor>(LABEL_COLORS[0]);
 
   useEffect(() => {
     labelsApi.optionsForCard(cardId).then(setLabels);
   }, [cardId]);
+
+  useEffect(() => {
+    onLabelsChange(labels.filter((l) => l.attached));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [labels]);
 
   async function toggle(label: CardLabelOption) {
     setLabels((prev) =>
@@ -38,7 +67,14 @@ function LabelsSection({ cardId }: { cardId: number }) {
     }
   }
 
-  if (labels.length === 0) return null;
+  async function handleCreate() {
+    const label = await labelsApi.create(boardId, newName.trim(), newColor);
+    await labelsApi.attach(cardId, label.id);
+    setLabels((prev) => [...prev, { ...label, attached: true }]);
+    setNewName("");
+    setNewColor(LABEL_COLORS[0]);
+    setCreating(false);
+  }
 
   return (
     <section className="mb-6">
@@ -46,7 +82,7 @@ function LabelsSection({ cardId }: { cardId: number }) {
         <Tag className="size-4 text-muted-foreground" />
         Étiquettes
       </div>
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         {labels.map((label) => (
           <button
             key={label.id}
@@ -59,7 +95,58 @@ function LabelsSection({ cardId }: { cardId: number }) {
             {label.name || <span className="italic opacity-80">sans nom</span>}
           </button>
         ))}
+        {!creating && (
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:bg-accent"
+          >
+            <Plus className="size-3.5" />
+            Créer
+          </button>
+        )}
       </div>
+      {creating && (
+        <div className="mt-2 flex flex-col gap-2 rounded-lg border border-border p-2.5">
+          <input
+            autoFocus
+            className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            placeholder="Nom (optionnel)"
+            value={newName}
+            onChange={(e) => setNewName(e.currentTarget.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+          />
+          <div className="flex flex-wrap gap-1.5">
+            {LABEL_COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                aria-label={c}
+                onClick={() => setNewColor(c)}
+                className={`size-6 rounded-full ${LABEL_COLOR_CLASSES[c]} ${
+                  newColor === c ? "ring-2 ring-offset-2 ring-ring" : ""
+                }`}
+              />
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleCreate}
+              className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              Créer et attacher
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreating(false)}
+              className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent"
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -141,8 +228,14 @@ function CustomFieldInput({
   );
 }
 
+const FIELD_TYPES = Object.keys(FIELD_TYPE_LABELS) as FieldType[];
+
 function CustomFieldsSection({ cardId }: { cardId: number }) {
   const [fields, setFields] = useState<CardFieldValue[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState<FieldType>("text");
+  const [newLinkPrefix, setNewLinkPrefix] = useState("");
 
   useEffect(() => {
     customFieldsApi.valuesForCard(cardId).then(setFields);
@@ -165,7 +258,23 @@ function CustomFieldsSection({ cardId }: { cardId: number }) {
     void customFieldsApi.setShowOnCard(customFieldId, value);
   }
 
-  if (fields.length === 0) return null;
+  async function handleCreate() {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    const field = await customFieldsApi.createForCard(
+      cardId,
+      trimmed,
+      newType,
+      newType === "link" ? newLinkPrefix.trim() : undefined,
+    );
+    setFields((prev) => [...prev, field]);
+    setNewName("");
+    setNewLinkPrefix("");
+    setCreating(false);
+  }
+
+  const inputClass =
+    "w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
 
   return (
     <section className="mb-6">
@@ -173,40 +282,109 @@ function CustomFieldsSection({ cardId }: { cardId: number }) {
         <LayoutList className="size-4 text-muted-foreground" />
         Champs personnalisés
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {fields.map((field) => (
-          <div key={field.custom_field_id}>
-            <div className="mb-1 flex items-center gap-1.5">
-              <label className="block text-xs font-medium text-muted-foreground">
-                {field.name}
-              </label>
-              <ShowOnCardToggle
-                value={field.show_on_card}
-                onChange={(value) => handleShowOnCardChange(field.custom_field_id, value)}
-                size="size-3.5"
+      {fields.length > 0 && (
+        <div className="mb-3 grid gap-3 sm:grid-cols-2">
+          {fields.map((field) => (
+            <div key={field.custom_field_id}>
+              <div className="mb-1 flex items-center gap-1.5">
+                <label className="block text-xs font-medium text-muted-foreground">
+                  {field.name}
+                </label>
+                <ShowOnCardToggle
+                  value={field.show_on_card}
+                  onChange={(value) => handleShowOnCardChange(field.custom_field_id, value)}
+                  size="size-3.5"
+                />
+              </div>
+              <CustomFieldInput
+                field={field}
+                value={field.value}
+                onChange={(value) => handleChange(field.custom_field_id, value)}
+                onCommit={(value) => handleCommit(field.custom_field_id, value)}
               />
             </div>
-            <CustomFieldInput
-              field={field}
-              value={field.value}
-              onChange={(value) => handleChange(field.custom_field_id, value)}
-              onCommit={(value) => handleCommit(field.custom_field_id, value)}
+          ))}
+        </div>
+      )}
+
+      {creating ? (
+        <div className="flex flex-col gap-2 rounded-lg border border-border p-2.5">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              autoFocus
+              className={`flex-1 ${inputClass}`}
+              placeholder="Nom du champ"
+              value={newName}
+              onChange={(e) => setNewName(e.currentTarget.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
             />
+            <select
+              className={inputClass}
+              value={newType}
+              onChange={(e) => setNewType(e.currentTarget.value as FieldType)}
+            >
+              {FIELD_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {FIELD_TYPE_LABELS[type]}
+                </option>
+              ))}
+            </select>
           </div>
-        ))}
-      </div>
+          {newType === "link" && (
+            <input
+              className={inputClass}
+              placeholder="Préfixe d'URL, ex: https://entreprise.atlassian.net/browse/"
+              value={newLinkPrefix}
+              onChange={(e) => setNewLinkPrefix(e.currentTarget.value)}
+            />
+          )}
+          <p className="text-xs text-muted-foreground">
+            Ce champ sera propre à cette carte uniquement, sans effet sur les autres cartes du
+            tableau.
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleCreate}
+              className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              Ajouter
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreating(false)}
+              className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent"
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setCreating(true)}
+          className="inline-flex items-center gap-1 rounded-md border border-dashed border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-accent"
+        >
+          <Plus className="size-3.5" />
+          Ajouter un champ
+        </button>
+      )}
     </section>
   );
 }
 
 export function CardEditor({
   card,
+  boardId,
   onClose,
   onRename,
+  onLabelsChange,
 }: {
   card: Card;
+  boardId: number;
   onClose: () => void;
   onRename: (title: string) => void;
+  onLabelsChange: (labels: { id: number; name: string; color: string }[]) => void;
 }) {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description);
@@ -343,7 +521,7 @@ export function CardEditor({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
-          <LabelsSection cardId={card.id} />
+          <LabelsSection cardId={card.id} boardId={boardId} onLabelsChange={onLabelsChange} />
 
           <CustomFieldsSection cardId={card.id} />
 
