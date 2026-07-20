@@ -8,6 +8,7 @@ import {
   LayoutList,
   Link2,
   Paperclip,
+  Tag,
   Trash2,
   Upload,
   X,
@@ -16,7 +17,52 @@ import { cardsApi, type Card } from "@/lib/cards";
 import { attachmentsApi, type Attachment } from "@/lib/attachments";
 import { jiraApi } from "@/lib/jira";
 import { customFieldsApi, type CardFieldValue, type ShowOnCard } from "@/lib/customFields";
+import { labelsApi, LABEL_COLOR_CLASSES, type CardLabelOption } from "@/lib/labels";
 import { ShowOnCardToggle } from "@/components/ShowOnCardToggle";
+
+function LabelsSection({ cardId }: { cardId: number }) {
+  const [labels, setLabels] = useState<CardLabelOption[]>([]);
+
+  useEffect(() => {
+    labelsApi.optionsForCard(cardId).then(setLabels);
+  }, [cardId]);
+
+  async function toggle(label: CardLabelOption) {
+    setLabels((prev) =>
+      prev.map((l) => (l.id === label.id ? { ...l, attached: !l.attached } : l)),
+    );
+    if (label.attached) {
+      await labelsApi.detach(cardId, label.id);
+    } else {
+      await labelsApi.attach(cardId, label.id);
+    }
+  }
+
+  if (labels.length === 0) return null;
+
+  return (
+    <section className="mb-6">
+      <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+        <Tag className="size-4 text-muted-foreground" />
+        Étiquettes
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {labels.map((label) => (
+          <button
+            key={label.id}
+            type="button"
+            onClick={() => toggle(label)}
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-white transition ${
+              LABEL_COLOR_CLASSES[label.color]
+            } ${label.attached ? "" : "opacity-30 hover:opacity-60"}`}
+          >
+            {label.name || <span className="italic opacity-80">sans nom</span>}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 function CustomFieldInput({
   field,
@@ -297,6 +343,8 @@ export function CardEditor({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
+          <LabelsSection cardId={card.id} />
+
           <CustomFieldsSection cardId={card.id} />
 
           <section className="mb-6">

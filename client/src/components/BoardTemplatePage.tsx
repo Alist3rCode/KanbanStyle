@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { TopBar, topBarButtonClass } from "@/components/TopBar";
 import { ShowOnCardToggle } from "@/components/ShowOnCardToggle";
+import { LabelsSection } from "@/components/LabelsSection";
 
 const SHOW_ON_CARD_VALUES = Object.keys(SHOW_ON_CARD_LABELS) as ShowOnCard[];
 
@@ -105,6 +106,10 @@ export function BoardTemplatePage({
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
         <h1 className="text-lg font-semibold">Paramètres du tableau</h1>
         <p className="mb-5 text-sm text-muted-foreground">{boardTitle}</p>
+
+        <div className="mb-4">
+          <LabelsSection boardId={boardId} />
+        </div>
 
         <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
           <h2 className="mb-1 text-sm font-semibold">Modèle de tâche</h2>
