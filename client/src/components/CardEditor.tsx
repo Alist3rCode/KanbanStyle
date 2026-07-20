@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   AlignLeft,
   Calendar,
-  CheckSquare,
   Clock,
   Code,
   CreditCard,
@@ -33,6 +32,7 @@ import {
   type LabelColor,
 } from "@/lib/labels";
 import { ShowOnCardToggle } from "@/components/ShowOnCardToggle";
+import { parseChecklist, serializeChecklist, type ChecklistItem } from "@/lib/checklist";
 
 function LabelsSection({
   cardId,
@@ -180,13 +180,12 @@ function CustomFieldInput({
 
   if (field.field_type === "checklist") {
     return (
-      <textarea
-        rows={2}
-        className={`${inputClass} resize-y`}
-        placeholder="Une ligne par élément"
+      <ChecklistEditor
         value={value}
-        onChange={(e) => onChange(e.currentTarget.value)}
-        onBlur={(e) => onCommit(e.currentTarget.value)}
+        onChange={(next) => {
+          onChange(next);
+          onCommit(next);
+        }}
       />
     );
   }
@@ -226,6 +225,94 @@ function CustomFieldInput({
       onChange={(e) => onChange(e.currentTarget.value)}
       onBlur={(e) => onCommit(e.currentTarget.value)}
     />
+  );
+}
+
+function ChecklistEditor({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const items = parseChecklist(value);
+  const [newItemText, setNewItemText] = useState("");
+  const done = items.filter((item) => item.done).length;
+
+  function update(next: ChecklistItem[]) {
+    onChange(serializeChecklist(next));
+  }
+
+  function toggleDone(index: number) {
+    update(items.map((item, i) => (i === index ? { ...item, done: !item.done } : item)));
+  }
+
+  function removeItem(index: number) {
+    update(items.filter((_, i) => i !== index));
+  }
+
+  function addItem() {
+    const text = newItemText.trim();
+    if (!text) return;
+    update([...items, { text, done: false }]);
+    setNewItemText("");
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {items.length > 0 && (
+        <>
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{ width: `${(done / items.length) * 100}%` }}
+            />
+          </div>
+          <ul className="flex flex-col gap-1">
+            {items.map((item, index) => (
+              <li key={index} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={item.done}
+                  onChange={() => toggleDone(index)}
+                  className="size-3.5 shrink-0 accent-primary"
+                />
+                <span
+                  className={`flex-1 truncate text-sm ${item.done ? "text-muted-foreground line-through" : ""}`}
+                >
+                  {item.text}
+                </span>
+                <button
+                  type="button"
+                  aria-label="Supprimer l'élément"
+                  onClick={() => removeItem(index)}
+                  className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <div className="flex gap-1.5">
+        <input
+          type="text"
+          className="w-full rounded-md border border-input bg-background px-2.5 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          placeholder="Ajouter un élément"
+          value={newItemText}
+          onChange={(e) => setNewItemText(e.currentTarget.value)}
+          onKeyDown={(e) => e.key === "Enter" && addItem()}
+        />
+        <button
+          type="button"
+          onClick={addItem}
+          className="shrink-0 rounded-md px-2 text-xs font-medium text-primary hover:bg-accent"
+        >
+          Ajouter
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -481,7 +568,6 @@ export function CardEditor({
   }
 
   const slashItems = [
-    { icon: CheckSquare, label: "Checklist", action: () => insertAtCursor("\n- [ ] ") },
     {
       icon: Calendar,
       label: "Date du jour",
@@ -568,7 +654,7 @@ export function CardEditor({
               <textarea
                 ref={textareaRef}
                 className="min-h-32 w-full rounded-lg border border-input bg-background p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                placeholder="Ajouter une description... tapez / pour insérer une checklist, une date, un lien Jira ou un bloc de code"
+                placeholder="Ajouter une description... tapez / pour insérer une date, un lien Jira ou un bloc de code"
                 value={description}
                 onChange={handleDescriptionChange}
                 onBlur={(e) => saveDescription(e.currentTarget.value)}

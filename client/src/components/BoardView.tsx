@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -28,9 +28,10 @@ import {
 } from "lucide-react";
 import { columnsApi, type Column } from "@/lib/columns";
 import { cardsApi, dueStatus, type Card } from "@/lib/cards";
-import { customFieldsApi } from "@/lib/customFields";
+import { customFieldsApi, type FieldType } from "@/lib/customFields";
 import { labelsApi, LABEL_COLOR_CLASSES, type Label } from "@/lib/labels";
 import { authApi } from "@/lib/auth";
+import { checklistProgress } from "@/lib/checklist";
 import { CardEditor } from "@/components/CardEditor";
 import { TopBar, topBarButtonClass } from "@/components/TopBar";
 
@@ -46,7 +47,7 @@ function CardItem({
 }: {
   card: Card;
   labels: { id: number; name: string; color: string }[];
-  visibleFields: { name: string; value: string }[];
+  visibleFields: { name: string; field_type: FieldType; value: string }[];
   onOpen: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -81,12 +82,23 @@ function CardItem({
       <p className="whitespace-pre-wrap break-words">{card.title}</p>
       {visibleFields.length > 0 && (
         <div className="mt-1.5 flex flex-col gap-0.5">
-          {visibleFields.map((field) => (
-            <p key={field.name} className="truncate text-xs text-muted-foreground">
-              <span className="font-medium">{field.name}:</span>{" "}
-              {field.value || <span className="italic">vide</span>}
-            </p>
-          ))}
+          {visibleFields.map((field) => {
+            if (field.field_type === "checklist") {
+              const { done, total } = checklistProgress(field.value);
+              return (
+                <p key={field.name} className="truncate text-xs text-muted-foreground">
+                  <span className="font-medium">{field.name}:</span>{" "}
+                  {total > 0 ? `${done}/${total}` : <span className="italic">vide</span>}
+                </p>
+              );
+            }
+            return (
+              <p key={field.name} className="truncate text-xs text-muted-foreground">
+                <span className="font-medium">{field.name}:</span>{" "}
+                {field.value || <span className="italic">vide</span>}
+              </p>
+            );
+          })}
         </div>
       )}
       {(card.closed || card.has_attachments || card.due_date) && (
@@ -128,6 +140,88 @@ function CardItem({
   );
 }
 
+/**
+ * Closes a popover on any click outside `ref`'s element, via a document-level
+ * listener rather than a full-screen backdrop div — a backdrop's z-index is
+ * only ever compared within its own ancestor's stacking context, so nesting
+ * it inside a column (which dnd-kit gives its own stacking context via
+ * `transform`) or inside the header strip can leave clicks elsewhere on the
+ * page unable to reach it, even though it visually covers the viewport.
+ */
+function useClickOutside(ref: RefObject<HTMLElement | null>, onOutside: () => void, enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+    function handlePointerDown(e: PointerEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onOutside();
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [ref, onOutside, enabled]);
+}
+
+function LabelFilterButton({
+  labels,
+  selected,
+  open,
+  onToggleOpen,
+  onClose,
+  onToggleLabel,
+  onClear,
+}: {
+  labels: Label[];
+  selected: Set<number>;
+  open: boolean;
+  onToggleOpen: () => void;
+  onClose: () => void;
+  onToggleLabel: (id: number) => void;
+  onClear: () => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  useClickOutside(containerRef, onClose, open);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        onClick={onToggleOpen}
+        className="flex items-center gap-1.5 rounded-md border border-white/20 bg-white/15 px-2 py-1 text-sm text-board-foreground transition hover:bg-white/25"
+      >
+        <Tag className="size-4" />
+        Étiquettes
+        {selected.size > 0 && (
+          <span className="rounded-full bg-white/25 px-1.5 text-xs">{selected.size}</span>
+        )}
+      </button>
+      {open && (
+        <div className="absolute left-0 top-9 z-40 w-56 rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-lg">
+          {labels.map((label) => (
+            <button
+              key={label.id}
+              type="button"
+              onClick={() => onToggleLabel(label.id)}
+              className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent ${
+                selected.has(label.id) ? "ring-1 ring-inset ring-ring" : ""
+              }`}
+            >
+              <span className={`h-3 w-6 shrink-0 rounded-full ${LABEL_COLOR_CLASSES[label.color]}`} />
+              <span className="flex-1 truncate">{label.name || "Sans nom"}</span>
+            </button>
+          ))}
+          {selected.size > 0 && (
+            <button
+              type="button"
+              onClick={onClear}
+              className="mt-1 block w-full rounded px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-accent"
+            >
+              Effacer le filtre
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ColumnMenu({
   isClosing,
   onToggleClosing,
@@ -138,8 +232,10 @@ function ColumnMenu({
   onDelete: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  useClickOutside(containerRef, () => setOpen(false), open);
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <button
         type="button"
         aria-label="Options de la liste"
@@ -150,29 +246,26 @@ function ColumnMenu({
         <MoreHorizontal className="size-4" />
       </button>
       {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-8 z-20 w-52 overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-lg">
-            <label className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-accent">
-              <input
-                type="checkbox"
-                checked={isClosing}
-                onChange={(e) => onToggleClosing(e.currentTarget.checked)}
-              />
-              Colonne de fermeture
-            </label>
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                onDelete();
-              }}
-              className="block w-full px-3 py-2 text-left text-sm text-destructive hover:bg-accent"
-            >
-              Supprimer la liste
-            </button>
-          </div>
-        </>
+        <div className="absolute right-0 top-8 z-20 w-52 overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-lg">
+          <label className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-accent">
+            <input
+              type="checkbox"
+              checked={isClosing}
+              onChange={(e) => onToggleClosing(e.currentTarget.checked)}
+            />
+            Colonne de fermeture
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onDelete();
+            }}
+            className="block w-full px-3 py-2 text-left text-sm text-destructive hover:bg-accent"
+          >
+            Supprimer la liste
+          </button>
+        </div>
       )}
     </div>
   );
@@ -191,7 +284,7 @@ function ColumnContainer({
 }: {
   column: ColumnWithCards;
   visibleCards: Card[];
-  visibleFieldsByCard: Map<number, { name: string; value: string }[]>;
+  visibleFieldsByCard: Map<number, { name: string; field_type: FieldType; value: string }[]>;
   cardLabelsByCard: Map<number, { id: number; name: string; color: string }[]>;
   onRename: (title: string) => void;
   onToggleClosingRule: (value: boolean) => void;
@@ -352,7 +445,7 @@ export function BoardView({
   const [onlyWithAttachments, setOnlyWithAttachments] = useState(false);
   const [fieldValuesByCard, setFieldValuesByCard] = useState<Map<number, string[]>>(new Map());
   const [visibleFieldsByCard, setVisibleFieldsByCard] = useState<
-    Map<number, { name: string; value: string }[]>
+    Map<number, { name: string; field_type: FieldType; value: string }[]>
   >(new Map());
   const [boardLabels, setBoardLabels] = useState<Label[]>([]);
   const [cardLabelsByCard, setCardLabelsByCard] = useState<
@@ -372,14 +465,17 @@ export function BoardView({
 
       const values = await customFieldsApi.fieldValuesForBoard(boardId);
       const searchByCard = new Map<number, string[]>();
-      const visibleByCard = new Map<number, { name: string; value: string }[]>();
-      for (const { card_id, name, show_on_card, value } of values) {
+      const visibleByCard = new Map<number, { name: string; field_type: FieldType; value: string }[]>();
+      for (const { card_id, name, field_type, show_on_card, value } of values) {
         if (value) {
           searchByCard.set(card_id, [...(searchByCard.get(card_id) ?? []), value]);
         }
         const shouldShow = show_on_card === "always" || (show_on_card === "if_not_empty" && value);
         if (shouldShow) {
-          visibleByCard.set(card_id, [...(visibleByCard.get(card_id) ?? []), { name, value }]);
+          visibleByCard.set(card_id, [
+            ...(visibleByCard.get(card_id) ?? []),
+            { name, field_type, value },
+          ]);
         }
       }
       setFieldValuesByCard(searchByCard);
@@ -605,48 +701,15 @@ export function BoardView({
         </label>
 
         {boardLabels.length > 0 && (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setLabelFilterOpen((v) => !v)}
-              className="flex items-center gap-1.5 rounded-md border border-white/20 bg-white/15 px-2 py-1 text-sm text-board-foreground transition hover:bg-white/25"
-            >
-              <Tag className="size-4" />
-              Étiquettes
-              {labelFilter.size > 0 && (
-                <span className="rounded-full bg-white/25 px-1.5 text-xs">{labelFilter.size}</span>
-              )}
-            </button>
-            {labelFilterOpen && (
-              <>
-                <div className="fixed inset-0 z-30" onClick={() => setLabelFilterOpen(false)} />
-                <div className="absolute left-0 top-9 z-40 w-56 rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-lg">
-                  {boardLabels.map((label) => (
-                    <button
-                      key={label.id}
-                      type="button"
-                      onClick={() => toggleLabelFilter(label.id)}
-                      className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent ${
-                        labelFilter.has(label.id) ? "ring-1 ring-inset ring-ring" : ""
-                      }`}
-                    >
-                      <span className={`h-3 w-6 shrink-0 rounded-full ${LABEL_COLOR_CLASSES[label.color]}`} />
-                      <span className="flex-1 truncate">{label.name || "Sans nom"}</span>
-                    </button>
-                  ))}
-                  {labelFilter.size > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setLabelFilter(new Set())}
-                      className="mt-1 block w-full rounded px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-accent"
-                    >
-                      Effacer le filtre
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
+          <LabelFilterButton
+            labels={boardLabels}
+            selected={labelFilter}
+            open={labelFilterOpen}
+            onToggleOpen={() => setLabelFilterOpen((v) => !v)}
+            onClose={() => setLabelFilterOpen(false)}
+            onToggleLabel={toggleLabelFilter}
+            onClear={() => setLabelFilter(new Set())}
+          />
         )}
       </div>
 

@@ -49,6 +49,7 @@ export interface CardFieldValue {
 export interface BoardFieldValue {
   card_id: number;
   name: string;
+  field_type: FieldType;
   show_on_card: ShowOnCard;
   value: string;
 }

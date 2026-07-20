@@ -44,6 +44,8 @@ customFieldsRouter.post("/boards/:boardId/custom-fields", (req, res) => {
     return;
   }
   const boardId = req.params.boardId;
+  // Checklists store a JSON array of items, not free text — a new field always starts empty.
+  const resolvedDefaultValue = field_type === "checklist" ? "[]" : default_value?.trim() ?? "";
   const { position } = db
     .prepare("SELECT COALESCE(MAX(position) + 1, 0) as position FROM custom_fields WHERE board_id = ?")
     .get(boardId) as { position: number };
@@ -57,7 +59,7 @@ customFieldsRouter.post("/boards/:boardId/custom-fields", (req, res) => {
       field_type,
       position,
       link_prefix?.trim() || null,
-      default_value?.trim() ?? "",
+      resolvedDefaultValue,
       show_on_card ?? "never",
     );
   res.status(201).json({
@@ -67,7 +69,7 @@ customFieldsRouter.post("/boards/:boardId/custom-fields", (req, res) => {
     field_type,
     position,
     link_prefix: link_prefix?.trim() || null,
-    default_value: default_value?.trim() ?? "",
+    default_value: resolvedDefaultValue,
     show_on_card: show_on_card ?? "never",
   });
 });
@@ -125,7 +127,7 @@ customFieldsRouter.delete("/custom-fields/:id", (req, res) => {
 customFieldsRouter.get("/boards/:boardId/field-values", (req, res) => {
   const values = db
     .prepare(
-      `SELECT fv.card_id, cf.name, cf.show_on_card, fv.value
+      `SELECT fv.card_id, cf.name, cf.field_type, cf.show_on_card, fv.value
        FROM field_values fv
        JOIN custom_fields cf ON cf.id = fv.custom_field_id
        WHERE cf.board_id = ?`,
@@ -185,6 +187,8 @@ customFieldsRouter.post("/cards/:cardId/custom-fields", (req, res) => {
     return;
   }
 
+  // Checklists store a JSON array of items, not free text — a new field always starts empty.
+  const resolvedValue = field_type === "checklist" ? "[]" : value ?? "";
   const insertField = db.prepare(
     "INSERT INTO custom_fields (board_id, card_id, name, field_type, position, link_prefix, default_value, show_on_card) VALUES (?, ?, ?, ?, 0, ?, '', 'never')",
   );
@@ -199,7 +203,7 @@ customFieldsRouter.post("/cards/:cardId/custom-fields", (req, res) => {
       field_type,
       link_prefix?.trim() || null,
     );
-    insertValue.run(cardId, info.lastInsertRowid, value ?? "");
+    insertValue.run(cardId, info.lastInsertRowid, resolvedValue);
     return info.lastInsertRowid;
   });
   const customFieldId = create();
@@ -210,6 +214,6 @@ customFieldsRouter.post("/cards/:cardId/custom-fields", (req, res) => {
     field_type,
     link_prefix: link_prefix?.trim() || null,
     show_on_card: "never",
-    value: value ?? "",
+    value: resolvedValue,
   });
 });
