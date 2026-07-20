@@ -12,6 +12,23 @@ function closingRuleFor(columnId: number | string): { closed: number; closedAt: 
   return { closed, closedAt: closed ? new Date().toISOString() : null };
 }
 
+/** Instantiates the board's custom-field template on every new card (US-04). */
+function instantiateTemplate(cardId: number | bigint, columnId: string) {
+  const fields = db
+    .prepare(
+      `SELECT id FROM custom_fields
+       WHERE board_id = (SELECT board_id FROM columns WHERE id = ?)`,
+    )
+    .all(columnId) as { id: number }[];
+  const insert = db.prepare(
+    "INSERT INTO field_values (card_id, custom_field_id, value) VALUES (?, ?, '')",
+  );
+  const insertAll = db.transaction((rows: { id: number }[]) => {
+    for (const field of rows) insert.run(cardId, field.id);
+  });
+  insertAll(fields);
+}
+
 cardsRouter.get("/columns/:columnId/cards", (req, res) => {
   const cards = db
     .prepare(
@@ -37,6 +54,7 @@ cardsRouter.post("/columns/:columnId/cards", (req, res) => {
       "INSERT INTO cards (column_id, title, position, closed, closed_at) VALUES (?, ?, ?, ?, ?)",
     )
     .run(columnId, title, position, closed, closedAt);
+  instantiateTemplate(info.lastInsertRowid, columnId);
   res.status(201).json({
     id: info.lastInsertRowid,
     column_id: Number(columnId),

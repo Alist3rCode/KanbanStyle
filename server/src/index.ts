@@ -11,6 +11,7 @@ import { cardsRouter } from "./routes/cards.js";
 import { settingsRouter } from "./routes/settings.js";
 import { jiraRouter } from "./routes/jira.js";
 import { attachmentsRouter } from "./routes/attachments.js";
+import { customFieldsRouter } from "./routes/customFields.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -65,6 +66,7 @@ app.use(
   settingsRouter,
   jiraRouter,
   attachmentsRouter,
+  customFieldsRouter,
 );
 
 const clientDist = process.env.CLIENT_DIST_DIR ?? path.join(__dirname, "../../client/dist");
