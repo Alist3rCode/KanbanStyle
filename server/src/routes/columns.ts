@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { db } from "../db.js";
+import { logActivity } from "../activity.js";
 
 export const columnsRouter = Router();
 
@@ -54,12 +55,22 @@ columnsRouter.patch("/columns/:id", (req, res) => {
       closed,
       req.params.id,
     );
+    const affected = db
+      .prepare("SELECT id FROM cards WHERE column_id = ? AND closed != ?")
+      .all(req.params.id, closed) as { id: number }[];
     // Keep every card in this column consistent with the new rule (US-05).
     db.prepare("UPDATE cards SET closed = ?, closed_at = ? WHERE column_id = ?").run(
       closed,
       closedAt,
       req.params.id,
     );
+    for (const card of affected) {
+      logActivity(
+        card.id,
+        closed ? "closed" : "reopened",
+        closed ? "Marquée comme terminée" : "Marquée comme non terminée",
+      );
+    }
   }
   res.status(204).end();
 });
