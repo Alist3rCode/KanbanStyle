@@ -17,6 +17,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { columnsApi, type Column } from "@/lib/columns";
 import { cardsApi, type Card } from "@/lib/cards";
+import { customFieldsApi } from "@/lib/customFields";
 import { Button } from "@/components/ui/button";
 import { CardEditor } from "@/components/CardEditor";
 
@@ -53,6 +54,7 @@ function CardItem({ card, onOpen }: { card: Card; onOpen: () => void }) {
 
 function ColumnContainer({
   column,
+  visibleCards,
   onRename,
   onToggleClosingRule,
   onDelete,
@@ -60,6 +62,7 @@ function ColumnContainer({
   onOpenCard,
 }: {
   column: ColumnWithCards;
+  visibleCards: Card[];
   onRename: (title: string) => void;
   onToggleClosingRule: (value: boolean) => void;
   onDelete: () => void;
@@ -100,11 +103,11 @@ function ColumnContainer({
       </label>
 
       <SortableContext
-        items={column.cards.map((c) => `card-${c.id}`)}
+        items={visibleCards.map((c) => `card-${c.id}`)}
         strategy={verticalListSortingStrategy}
       >
         <div className="flex min-h-8 flex-col gap-2">
-          {column.cards.map((card) => (
+          {visibleCards.map((card) => (
             <CardItem key={card.id} card={card} onOpen={() => onOpenCard(card)} />
           ))}
         </div>
@@ -132,6 +135,10 @@ export function BoardView({ boardId, boardTitle, onBack }: { boardId: number; bo
   const [columns, setColumns] = useState<ColumnWithCards[]>([]);
   const [newColumnTitle, setNewColumnTitle] = useState("");
   const [editingCard, setEditingCard] = useState<Card | null>(null);
+  const [search, setSearch] = useState("");
+  const [hideClosed, setHideClosed] = useState(false);
+  const [onlyWithAttachments, setOnlyWithAttachments] = useState(false);
+  const [fieldValuesByCard, setFieldValuesByCard] = useState<Map<number, string[]>>(new Map());
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   useEffect(() => {
@@ -141,8 +148,25 @@ export function BoardView({ boardId, boardTitle, onBack }: { boardId: number; bo
         cols.map(async (col) => ({ ...col, cards: await cardsApi.list(col.id) })),
       );
       setColumns(withCards);
+
+      const values = await customFieldsApi.fieldValuesForBoard(boardId);
+      const byCard = new Map<number, string[]>();
+      for (const { card_id, value } of values) {
+        byCard.set(card_id, [...(byCard.get(card_id) ?? []), value]);
+      }
+      setFieldValuesByCard(byCard);
     })();
   }, [boardId]);
+
+  function isCardVisible(card: Card): boolean {
+    if (hideClosed && card.closed) return false;
+    if (onlyWithAttachments && !card.has_attachments) return false;
+    const query = search.trim().toLowerCase();
+    if (!query) return true;
+    if (card.title.toLowerCase().includes(query)) return true;
+    if (card.description.toLowerCase().includes(query)) return true;
+    return (fieldValuesByCard.get(card.id) ?? []).some((v) => v.toLowerCase().includes(query));
+  }
 
   async function handleAddColumn() {
     const title = newColumnTitle.trim();
@@ -260,11 +284,36 @@ export function BoardView({ boardId, boardTitle, onBack }: { boardId: number; bo
 
   return (
     <main className="flex h-full flex-col p-8">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">{boardTitle}</h1>
         <Button variant="ghost" onClick={onBack}>
           Retour
         </Button>
+      </div>
+
+      <div className="mb-6 flex flex-wrap items-center gap-4">
+        <input
+          className="w-64 rounded-md border border-input bg-background px-3 py-2 text-sm"
+          placeholder="Rechercher une carte..."
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+        />
+        <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={hideClosed}
+            onChange={(e) => setHideClosed(e.currentTarget.checked)}
+          />
+          Masquer les tâches terminées
+        </label>
+        <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={onlyWithAttachments}
+            onChange={(e) => setOnlyWithAttachments(e.currentTarget.checked)}
+          />
+          Cartes avec pièces jointes
+        </label>
       </div>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -277,6 +326,7 @@ export function BoardView({ boardId, boardTitle, onBack }: { boardId: number; bo
               <ColumnContainer
                 key={column.id}
                 column={column}
+                visibleCards={column.cards.filter(isCardVisible)}
                 onRename={(title) => handleRenameColumn(column.id, title)}
                 onToggleClosingRule={(value) => handleToggleClosingRule(column.id, value)}
                 onDelete={() => handleDeleteColumn(column.id)}
