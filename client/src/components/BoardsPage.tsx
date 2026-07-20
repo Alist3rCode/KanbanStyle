@@ -91,7 +91,7 @@ function BoardTile({
           >
             {[
               { label: "Renommer", action: () => setEditing(true) },
-              { label: "Modèle de tâche", action: onOpenTemplate },
+              { label: "Paramètres du tableau", action: onOpenTemplate },
               { label: "Supprimer", action: onDelete, danger: true },
             ].map((item) => (
               <button
