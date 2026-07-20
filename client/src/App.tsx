@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { authApi } from "@/lib/auth";
 import { boardsApi, type Board } from "@/lib/boards";
+import { useTheme } from "@/lib/theme";
 import { Button } from "@/components/ui/button";
 import { LoginForm } from "@/components/LoginForm";
 import { SettingsPage } from "@/components/SettingsPage";
@@ -83,6 +84,7 @@ function BoardsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
 function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [view, setView] = useState<"boards" | "settings">("boards");
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     authApi.me().then((res) => setAuthenticated(res.authenticated));
@@ -93,7 +95,7 @@ function App() {
     return <LoginForm onSuccess={() => setAuthenticated(true)} />;
   }
   if (view === "settings") {
-    return <SettingsPage onBack={() => setView("boards")} />;
+    return <SettingsPage theme={theme} setTheme={setTheme} onBack={() => setView("boards")} />;
   }
   return <BoardsPage onOpenSettings={() => setView("settings")} />;
 }

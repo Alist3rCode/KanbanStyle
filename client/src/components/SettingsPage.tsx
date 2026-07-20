@@ -1,6 +1,38 @@
 import { useEffect, useState } from "react";
 import { jiraApi, type JiraIssue } from "@/lib/jira";
+import type { Theme } from "@/lib/theme";
 import { Button } from "@/components/ui/button";
+
+const THEME_OPTIONS: { value: Theme; label: string }[] = [
+  { value: "system", label: "Système" },
+  { value: "light", label: "Clair" },
+  { value: "dark", label: "Sombre" },
+];
+
+function ThemeSettings({
+  theme,
+  setTheme,
+}: {
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
+}) {
+  return (
+    <section>
+      <h2 className="mb-2 text-sm font-medium text-muted-foreground">Thème</h2>
+      <div className="flex gap-2">
+        {THEME_OPTIONS.map((option) => (
+          <Button
+            key={option.value}
+            variant={theme === option.value ? "default" : "outline"}
+            onClick={() => setTheme(option.value)}
+          >
+            {option.label}
+          </Button>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 function JiraSettings() {
   const [domain, setDomain] = useState("");
@@ -112,7 +144,15 @@ function JiraSettings() {
   );
 }
 
-export function SettingsPage({ onBack }: { onBack: () => void }) {
+export function SettingsPage({
+  theme,
+  setTheme,
+  onBack,
+}: {
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
+  onBack: () => void;
+}) {
   return (
     <main className="mx-auto max-w-2xl p-8">
       <div className="mb-6 flex items-center justify-between">
@@ -122,7 +162,10 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
         </Button>
       </div>
 
-      <JiraSettings />
+      <div className="flex flex-col gap-6">
+        <ThemeSettings theme={theme} setTheme={setTheme} />
+        <JiraSettings />
+      </div>
     </main>
   );
 }
