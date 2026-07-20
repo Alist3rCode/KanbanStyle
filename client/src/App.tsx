@@ -5,8 +5,15 @@ import { useTheme } from "@/lib/theme";
 import { Button } from "@/components/ui/button";
 import { LoginForm } from "@/components/LoginForm";
 import { SettingsPage } from "@/components/SettingsPage";
+import { BoardTemplatePage } from "@/components/BoardTemplatePage";
 
-function BoardsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
+function BoardsPage({
+  onOpenSettings,
+  onOpenTemplate,
+}: {
+  onOpenSettings: () => void;
+  onOpenTemplate: (board: Board) => void;
+}) {
   const [boards, setBoards] = useState<Board[]>([]);
   const [newTitle, setNewTitle] = useState("");
 
@@ -68,6 +75,9 @@ function BoardsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
               defaultValue={board.title}
               onBlur={(e) => handleRename(board.id, e.currentTarget.value)}
             />
+            <Button variant="ghost" onClick={() => onOpenTemplate(board)}>
+              Modèle
+            </Button>
             <Button variant="ghost" onClick={() => handleDelete(board.id)}>
               Supprimer
             </Button>
@@ -83,7 +93,8 @@ function BoardsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
 
 function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
-  const [view, setView] = useState<"boards" | "settings">("boards");
+  const [view, setView] = useState<"boards" | "settings" | "template">("boards");
+  const [templateBoard, setTemplateBoard] = useState<Board | null>(null);
   const { theme, setTheme } = useTheme();
 
   useEffect(() => {
@@ -97,7 +108,24 @@ function App() {
   if (view === "settings") {
     return <SettingsPage theme={theme} setTheme={setTheme} onBack={() => setView("boards")} />;
   }
-  return <BoardsPage onOpenSettings={() => setView("settings")} />;
+  if (view === "template" && templateBoard) {
+    return (
+      <BoardTemplatePage
+        boardId={templateBoard.id}
+        boardTitle={templateBoard.title}
+        onBack={() => setView("boards")}
+      />
+    );
+  }
+  return (
+    <BoardsPage
+      onOpenSettings={() => setView("settings")}
+      onOpenTemplate={(board) => {
+        setTemplateBoard(board);
+        setView("template");
+      }}
+    />
+  );
 }
 
 export default App;
