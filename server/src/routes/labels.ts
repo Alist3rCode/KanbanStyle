@@ -101,8 +101,9 @@ labelsRouter.get("/cards/:cardId/board-labels", (req, res) => {
        WHERE l.board_id = (SELECT board_id FROM columns WHERE id = (SELECT column_id FROM cards WHERE id = ?))
        ORDER BY l.position, l.id`,
     )
-    .all(req.params.cardId, req.params.cardId);
-  res.json(labels);
+    .all(req.params.cardId, req.params.cardId) as { attached: number }[];
+  // SQLite has no real boolean — cast the raw 0/1 so the client gets a true JS boolean.
+  res.json(labels.map((l) => ({ ...l, attached: Boolean(l.attached) })));
 });
 
 labelsRouter.post("/cards/:cardId/labels/:labelId", (req, res) => {

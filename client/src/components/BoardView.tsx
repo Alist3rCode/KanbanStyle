@@ -243,6 +243,7 @@ function ColumnContainer({
             Fermeture
           </span>
         )}
+        <span className="shrink-0 text-xs text-list-foreground/60">{visibleCards.length}</span>
         <ColumnMenu
           isClosing={column.is_closing_column}
           onToggleClosing={onToggleClosingRule}

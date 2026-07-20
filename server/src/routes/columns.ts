@@ -8,8 +8,9 @@ columnsRouter.get("/boards/:boardId/columns", (req, res) => {
     .prepare(
       "SELECT id, board_id, title, position, is_closing_column FROM columns WHERE board_id = ? ORDER BY position, id",
     )
-    .all(req.params.boardId);
-  res.json(columns);
+    .all(req.params.boardId) as { is_closing_column: number }[];
+  // SQLite has no real boolean — cast the raw 0/1 so the client gets a true JS boolean.
+  res.json(columns.map((c) => ({ ...c, is_closing_column: Boolean(c.is_closing_column) })));
 });
 
 columnsRouter.post("/boards/:boardId/columns", (req, res) => {

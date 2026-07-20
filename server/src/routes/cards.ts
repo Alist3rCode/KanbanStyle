@@ -36,8 +36,15 @@ cardsRouter.get("/columns/:columnId/cards", (req, res) => {
               EXISTS(SELECT 1 FROM attachments WHERE attachments.card_id = cards.id) AS has_attachments
        FROM cards WHERE column_id = ? ORDER BY position, id`,
     )
-    .all(req.params.columnId);
-  res.json(cards);
+    .all(req.params.columnId) as { closed: number; has_attachments: number }[];
+  // SQLite has no real boolean — cast the raw 0/1 so the client gets true JS booleans.
+  res.json(
+    cards.map((c) => ({
+      ...c,
+      closed: Boolean(c.closed),
+      has_attachments: Boolean(c.has_attachments),
+    })),
+  );
 });
 
 cardsRouter.post("/columns/:columnId/cards", (req, res) => {
