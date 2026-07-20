@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import {
   AlignLeft,
+  ArrowLeftRight,
   Calendar,
+  CheckSquare,
   Clock,
   Code,
   CreditCard,
+  History,
   Image,
   LayoutList,
   Link2,
   Paperclip,
   Plus,
+  RotateCcw,
   Tag,
   Trash2,
   Upload,
@@ -17,6 +21,7 @@ import {
 } from "lucide-react";
 import { cardsApi, type Card } from "@/lib/cards";
 import { attachmentsApi, type Attachment } from "@/lib/attachments";
+import { activityApi, type CardActivity } from "@/lib/activity";
 import { jiraApi } from "@/lib/jira";
 import {
   customFieldsApi,
@@ -136,10 +141,12 @@ function LabelsSection({
   cardId,
   boardId,
   onLabelsChange,
+  onActivity,
 }: {
   cardId: number;
   boardId: number;
   onLabelsChange: (labels: { id: number; name: string; color: string }[]) => void;
+  onActivity: () => void;
 }) {
   const [labels, setLabels] = useState<CardLabelOption[]>([]);
   const [creating, setCreating] = useState(false);
@@ -164,6 +171,7 @@ function LabelsSection({
     } else {
       await labelsApi.attach(cardId, label.id);
     }
+    onActivity();
   }
 
   async function handleCreate() {
@@ -173,6 +181,7 @@ function LabelsSection({
     setNewName("");
     setNewColor(LABEL_COLORS[0]);
     setCreating(false);
+    onActivity();
   }
 
   return (
@@ -416,12 +425,18 @@ function ChecklistEditor({
 
 const FIELD_TYPES = Object.keys(FIELD_TYPE_LABELS) as FieldType[];
 
+function fieldHasValue(field: CardFieldValue): boolean {
+  if (field.field_type === "checklist") return parseChecklist(field.value).length > 0;
+  return field.value.trim().length > 0;
+}
+
 function CustomFieldsSection({ cardId }: { cardId: number }) {
   const [fields, setFields] = useState<CardFieldValue[]>([]);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<FieldType>("text");
   const [newLinkPrefix, setNewLinkPrefix] = useState("");
+  const [fieldPendingDelete, setFieldPendingDelete] = useState<CardFieldValue | null>(null);
 
   useEffect(() => {
     customFieldsApi.valuesForCard(cardId).then(setFields);
@@ -442,6 +457,20 @@ function CustomFieldsSection({ cardId }: { cardId: number }) {
       prev.map((f) => (f.custom_field_id === customFieldId ? { ...f, show_on_card: value } : f)),
     );
     void customFieldsApi.setShowOnCard(customFieldId, value);
+  }
+
+  function requestDelete(field: CardFieldValue) {
+    if (fieldHasValue(field)) {
+      setFieldPendingDelete(field);
+    } else {
+      void performDelete(field.custom_field_id);
+    }
+  }
+
+  async function performDelete(customFieldId: number) {
+    await customFieldsApi.remove(customFieldId);
+    setFields((prev) => prev.filter((f) => f.custom_field_id !== customFieldId));
+    setFieldPendingDelete(null);
   }
 
   async function handleCreate() {
@@ -473,7 +502,7 @@ function CustomFieldsSection({ cardId }: { cardId: number }) {
           {fields.map((field) => (
             <div key={field.custom_field_id}>
               <div className="mb-1 flex items-center gap-1.5">
-                <label className="block text-xs font-medium text-muted-foreground">
+                <label className="block flex-1 truncate text-xs font-medium text-muted-foreground">
                   {field.name}
                 </label>
                 <ShowOnCardToggle
@@ -481,6 +510,14 @@ function CustomFieldsSection({ cardId }: { cardId: number }) {
                   onChange={(value) => handleShowOnCardChange(field.custom_field_id, value)}
                   size="size-3.5"
                 />
+                <button
+                  type="button"
+                  aria-label="Supprimer le champ"
+                  onClick={() => requestDelete(field)}
+                  className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-destructive"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
               </div>
               <CustomFieldInput
                 field={field}
@@ -555,6 +592,39 @@ function CustomFieldsSection({ cardId }: { cardId: number }) {
           Ajouter un champ
         </button>
       )}
+
+      {fieldPendingDelete && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setFieldPendingDelete(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-xl border border-border bg-card p-4 text-card-foreground shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="mb-1 text-sm font-semibold">Supprimer « {fieldPendingDelete.name} » ?</p>
+            <p className="mb-4 text-xs text-muted-foreground">
+              Ce champ contient une valeur qui sera définitivement perdue.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setFieldPendingDelete(null)}
+                className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => void performDelete(fieldPendingDelete.custom_field_id)}
+                className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground hover:bg-destructive/90"
+              >
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -564,6 +634,7 @@ export function CardEditor({
   boardId,
   onClose,
   onRename,
+  onDescriptionChange,
   onDueDateChange,
   onCoverChange,
   onLabelsChange,
@@ -572,6 +643,7 @@ export function CardEditor({
   boardId: number;
   onClose: () => void;
   onRename: (title: string) => void;
+  onDescriptionChange: (description: string) => void;
   onDueDateChange: (dueDate: string | null) => void;
   onCoverChange: (cover: { cover_color: string | null; cover_image: string | null }) => void;
   onLabelsChange: (labels: { id: number; name: string; color: string }[]) => void;
@@ -584,13 +656,23 @@ export function CardEditor({
   const [slashOpen, setSlashOpen] = useState(false);
   const [jiraError, setJiraError] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [activities, setActivities] = useState<CardActivity[]>([]);
+  const [activityVersion, setActivityVersion] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
+  function bumpActivity() {
+    setActivityVersion((v) => v + 1);
+  }
+
   useEffect(() => {
     attachmentsApi.list(card.id).then(setAttachments);
   }, [card.id]);
+
+  useEffect(() => {
+    activityApi.list(card.id).then(setActivities);
+  }, [card.id, activityVersion]);
 
   useEffect(() => {
     const el = titleRef.current;
@@ -608,19 +690,21 @@ export function CardEditor({
   }, [slashOpen, onClose]);
 
   function saveDescription(value: string) {
+    if (value === card.description) return;
     void cardsApi.updateDescription(card.id, value);
+    onDescriptionChange(value);
   }
 
   function handleDueDateChange(value: string) {
     setDueDate(value);
-    void cardsApi.setDueDate(card.id, value || null);
+    void cardsApi.setDueDate(card.id, value || null).then(bumpActivity);
     onDueDateChange(value || null);
   }
 
   function handleCoverColorChange(color: string) {
     setCoverColor(color);
     setCoverImage(null);
-    void cardsApi.setCoverColor(card.id, color);
+    void cardsApi.setCoverColor(card.id, color).then(bumpActivity);
     onCoverChange({ cover_color: color, cover_image: null });
   }
 
@@ -629,6 +713,7 @@ export function CardEditor({
     setCoverImage(cover_image);
     setCoverColor(null);
     onCoverChange({ cover_color: null, cover_image });
+    bumpActivity();
   }
 
   async function handleRemoveCover() {
@@ -640,6 +725,7 @@ export function CardEditor({
     setCoverColor(null);
     setCoverImage(null);
     onCoverChange({ cover_color: null, cover_image: null });
+    bumpActivity();
   }
 
   function handleDescriptionChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
@@ -687,11 +773,13 @@ export function CardEditor({
   async function handleUpload(file: File) {
     const attachment = await attachmentsApi.upload(card.id, file);
     setAttachments((prev) => [...prev, attachment]);
+    bumpActivity();
   }
 
   async function handleDeleteAttachment(id: number) {
     await attachmentsApi.remove(id);
     setAttachments((prev) => prev.filter((a) => a.id !== id));
+    bumpActivity();
   }
 
   const slashItems = [
@@ -725,7 +813,7 @@ export function CardEditor({
             onBlur={() => {
               const next = title.trim();
               if (next && next !== card.title) {
-                void cardsApi.rename(card.id, next);
+                void cardsApi.rename(card.id, next).then(bumpActivity);
                 onRename(next);
               } else {
                 setTitle(card.title);
@@ -761,7 +849,12 @@ export function CardEditor({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
-          <LabelsSection cardId={card.id} boardId={boardId} onLabelsChange={onLabelsChange} />
+          <LabelsSection
+            cardId={card.id}
+            boardId={boardId}
+            onLabelsChange={onLabelsChange}
+            onActivity={bumpActivity}
+          />
 
           <section className="mb-6">
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
@@ -890,8 +983,59 @@ export function CardEditor({
               )}
             </ul>
           </section>
+
+          <ActivitySection activities={activities} />
         </div>
       </div>
     </div>
+  );
+}
+
+const ACTIVITY_ICONS: Record<CardActivity["type"], typeof History> = {
+  created: Plus,
+  renamed: AlignLeft,
+  moved: ArrowLeftRight,
+  closed: CheckSquare,
+  reopened: RotateCcw,
+  due_date: Clock,
+  label: Tag,
+  cover: Image,
+  attachment: Paperclip,
+};
+
+function formatActivityDate(iso: string): string {
+  return new Date(`${iso.replace(" ", "T")}Z`).toLocaleString("fr-FR", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function ActivitySection({ activities }: { activities: CardActivity[] }) {
+  return (
+    <section className="mt-6">
+      <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+        <History className="size-4 text-muted-foreground" />
+        Activité
+      </div>
+      <ul className="space-y-2">
+        {activities.map((activity) => {
+          const Icon = ACTIVITY_ICONS[activity.type] ?? History;
+          return (
+            <li key={activity.id} className="flex items-start gap-2 text-xs">
+              <Icon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+              <span className="flex-1 text-muted-foreground">{activity.message}</span>
+              <span className="shrink-0 text-muted-foreground/70">
+                {formatActivityDate(activity.created_at)}
+              </span>
+            </li>
+          );
+        })}
+        {activities.length === 0 && (
+          <p className="text-xs text-muted-foreground">Aucune activité.</p>
+        )}
+      </ul>
+    </section>
   );
 }

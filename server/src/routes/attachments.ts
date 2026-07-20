@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, unlink } from "node:fs";
 import path from "node:path";
 import { db, DATA_DIR } from "../db.js";
+import { logActivity } from "../activity.js";
 
 export const attachmentsRouter = Router();
 
@@ -35,6 +36,7 @@ attachmentsRouter.post("/cards/:cardId/attachments", upload.single("file"), (req
   const info = db
     .prepare("INSERT INTO attachments (card_id, file_name, stored_path) VALUES (?, ?, ?)")
     .run(req.params.cardId, req.file.originalname, req.file.filename);
+  logActivity(req.params.cardId, "attachment", `Pièce jointe « ${req.file.originalname} » ajoutée`);
   res.status(201).json({
     id: info.lastInsertRowid,
     card_id: Number(req.params.cardId),
@@ -58,11 +60,12 @@ attachmentsRouter.get("/attachments/:id/file", (req, res) => {
 
 attachmentsRouter.delete("/attachments/:id", (req, res) => {
   const attachment = db
-    .prepare("SELECT stored_path FROM attachments WHERE id = ?")
-    .get(req.params.id) as { stored_path: string } | undefined;
+    .prepare("SELECT card_id, file_name, stored_path FROM attachments WHERE id = ?")
+    .get(req.params.id) as { card_id: number; file_name: string; stored_path: string } | undefined;
   db.prepare("DELETE FROM attachments WHERE id = ?").run(req.params.id);
   if (attachment) {
     unlink(path.join(ATTACHMENTS_DIR, attachment.stored_path), () => {});
+    logActivity(attachment.card_id, "attachment", `Pièce jointe « ${attachment.file_name} » retirée`);
   }
   res.status(204).end();
 });

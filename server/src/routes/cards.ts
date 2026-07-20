@@ -5,6 +5,7 @@ import { mkdirSync, unlink } from "node:fs";
 import path from "node:path";
 import { db, DATA_DIR } from "../db.js";
 import { isLabelColor } from "./labels.js";
+import { logActivity } from "../activity.js";
 
 export const cardsRouter = Router();
 
@@ -94,6 +95,7 @@ cardsRouter.post("/columns/:columnId/cards", (req, res) => {
     )
     .run(columnId, title, position, closed, closedAt);
   instantiateTemplate(info.lastInsertRowid, columnId);
+  logActivity(info.lastInsertRowid, "created", "Carte créée");
   res.status(201).json({
     id: info.lastInsertRowid,
     column_id: Number(columnId),
@@ -120,20 +122,39 @@ cardsRouter.patch("/cards/:id", (req, res) => {
     res.status(400).json({ error: "cover_color doit être une couleur ou un dégradé valide" });
     return;
   }
+  const before = db
+    .prepare("SELECT title, due_date FROM cards WHERE id = ?")
+    .get(req.params.id) as { title: string; due_date: string | null } | undefined;
   if (title !== undefined) {
     db.prepare("UPDATE cards SET title = ? WHERE id = ?").run(title, req.params.id);
+    if (before && title.trim() && title.trim() !== before.title) {
+      logActivity(req.params.id, "renamed", `Titre changé en « ${title.trim()} »`);
+    }
   }
   if (description !== undefined) {
     db.prepare("UPDATE cards SET description = ? WHERE id = ?").run(description, req.params.id);
   }
   if (due_date !== undefined) {
-    db.prepare("UPDATE cards SET due_date = ? WHERE id = ?").run(due_date || null, req.params.id);
+    const resolved = due_date || null;
+    db.prepare("UPDATE cards SET due_date = ? WHERE id = ?").run(resolved, req.params.id);
+    if (before && resolved !== before.due_date) {
+      logActivity(
+        req.params.id,
+        "due_date",
+        resolved ? `Date d'échéance fixée au ${resolved}` : "Date d'échéance supprimée",
+      );
+    }
   }
   if (cover_color !== undefined) {
     // Setting a color cover clears any image cover, and vice versa (US-14: one cover at a time).
     db.prepare("UPDATE cards SET cover_color = ?, cover_image = NULL WHERE id = ?").run(
       cover_color,
       req.params.id,
+    );
+    logActivity(
+      req.params.id,
+      "cover",
+      cover_color ? "Couverture de couleur définie" : "Couverture retirée",
     );
   }
   res.status(204).end();
@@ -154,6 +175,7 @@ cardsRouter.post("/cards/:id/cover-image", uploadCover.single("file"), (req, res
   if (previous?.cover_image) {
     unlink(path.join(COVERS_DIR, previous.cover_image), () => {});
   }
+  logActivity(req.params.id, "cover", "Image de couverture ajoutée");
   res.status(201).json({ cover_image: req.file.filename });
 });
 
@@ -168,16 +190,40 @@ cardsRouter.delete("/cards/:id/cover-image", (req, res) => {
   db.prepare("UPDATE cards SET cover_image = NULL WHERE id = ?").run(req.params.id);
   if (card?.cover_image) {
     unlink(path.join(COVERS_DIR, card.cover_image), () => {});
+    logActivity(req.params.id, "cover", "Couverture retirée");
   }
   res.status(204).end();
 });
 
 cardsRouter.post("/cards/:id/move", (req, res) => {
   const { column_id, position } = req.body as { column_id: number; position: number };
+  const before = db
+    .prepare("SELECT column_id, closed FROM cards WHERE id = ?")
+    .get(req.params.id) as { column_id: number; closed: number } | undefined;
   const { closed, closedAt } = closingRuleFor(column_id);
   db.prepare(
     "UPDATE cards SET column_id = ?, position = ?, closed = ?, closed_at = ? WHERE id = ?",
   ).run(column_id, position, closed, closedAt, req.params.id);
+  if (before && before.column_id !== column_id) {
+    const [fromColumn, toColumn] = [
+      db.prepare("SELECT title FROM columns WHERE id = ?").get(before.column_id) as
+        | { title: string }
+        | undefined,
+      db.prepare("SELECT title FROM columns WHERE id = ?").get(column_id) as
+        | { title: string }
+        | undefined,
+    ];
+    logActivity(
+      req.params.id,
+      "moved",
+      `Déplacée de « ${fromColumn?.title ?? "?"} » vers « ${toColumn?.title ?? "?"} »`,
+    );
+    if (!before.closed && closed) {
+      logActivity(req.params.id, "closed", "Marquée comme terminée");
+    } else if (before.closed && !closed) {
+      logActivity(req.params.id, "reopened", "Marquée comme non terminée");
+    }
+  }
   res.status(204).end();
 });
 

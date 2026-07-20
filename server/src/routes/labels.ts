@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { db } from "../db.js";
+import { logActivity } from "../activity.js";
 
 export const labelsRouter = Router();
 
@@ -107,18 +108,28 @@ labelsRouter.get("/cards/:cardId/board-labels", (req, res) => {
 });
 
 labelsRouter.post("/cards/:cardId/labels/:labelId", (req, res) => {
-  db.prepare("INSERT OR IGNORE INTO card_labels (card_id, label_id) VALUES (?, ?)").run(
-    req.params.cardId,
-    req.params.labelId,
-  );
+  const info = db
+    .prepare("INSERT OR IGNORE INTO card_labels (card_id, label_id) VALUES (?, ?)")
+    .run(req.params.cardId, req.params.labelId);
+  if (info.changes > 0) {
+    const label = db
+      .prepare("SELECT name FROM labels WHERE id = ?")
+      .get(req.params.labelId) as { name: string } | undefined;
+    logActivity(req.params.cardId, "label", `Étiquette « ${label?.name || "Sans nom"} » ajoutée`);
+  }
   res.status(204).end();
 });
 
 labelsRouter.delete("/cards/:cardId/labels/:labelId", (req, res) => {
-  db.prepare("DELETE FROM card_labels WHERE card_id = ? AND label_id = ?").run(
-    req.params.cardId,
-    req.params.labelId,
-  );
+  const label = db
+    .prepare("SELECT name FROM labels WHERE id = ?")
+    .get(req.params.labelId) as { name: string } | undefined;
+  const info = db
+    .prepare("DELETE FROM card_labels WHERE card_id = ? AND label_id = ?")
+    .run(req.params.cardId, req.params.labelId);
+  if (info.changes > 0) {
+    logActivity(req.params.cardId, "label", `Étiquette « ${label?.name || "Sans nom"} » retirée`);
+  }
   res.status(204).end();
 });
 

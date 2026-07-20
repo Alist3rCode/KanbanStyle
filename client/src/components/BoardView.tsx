@@ -569,6 +569,15 @@ export function BoardView({
     );
   }
 
+  function handleCardDescriptionChange(cardId: number, description: string) {
+    setColumns((prev) =>
+      prev.map((c) => ({
+        ...c,
+        cards: c.cards.map((card) => (card.id === cardId ? { ...card, description } : card)),
+      })),
+    );
+  }
+
   function handleCardDueDateChange(cardId: number, dueDate: string | null) {
     setColumns((prev) =>
       prev.map((c) => ({
@@ -801,6 +810,9 @@ export function BoardView({
           boardId={boardId}
           onClose={() => setEditingCard(null)}
           onRename={(title) => handleRenameCard(editingCard.id, title)}
+          onDescriptionChange={(description) =>
+            handleCardDescriptionChange(editingCard.id, description)
+          }
           onDueDateChange={(dueDate) => handleCardDueDateChange(editingCard.id, dueDate)}
           onCoverChange={(cover) => handleCardCoverChange(editingCard.id, cover)}
           onLabelsChange={(labels) =>
