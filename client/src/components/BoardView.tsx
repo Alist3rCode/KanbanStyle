@@ -16,6 +16,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  Clock,
   LogOut,
   MoreHorizontal,
   Paperclip,
@@ -25,7 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { columnsApi, type Column } from "@/lib/columns";
-import { cardsApi, type Card } from "@/lib/cards";
+import { cardsApi, dueStatus, type Card } from "@/lib/cards";
 import { customFieldsApi } from "@/lib/customFields";
 import { authApi } from "@/lib/auth";
 import { CardEditor } from "@/components/CardEditor";
@@ -73,13 +74,34 @@ function CardItem({
           ))}
         </div>
       )}
-      {(card.closed || card.has_attachments) && (
+      {(card.closed || card.has_attachments || card.due_date) && (
         <div className="mt-1.5 flex items-center gap-1.5">
           {card.closed && (
             <span className="inline-flex items-center rounded bg-emerald-500/15 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
               Terminé
             </span>
           )}
+          {card.due_date &&
+            (() => {
+              const status = dueStatus(card);
+              return (
+                <span
+                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                    status === "overdue"
+                      ? "bg-red-500/15 text-red-700 dark:text-red-400"
+                      : status === "soon"
+                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                        : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  <Clock className="size-3" />
+                  {new Date(`${card.due_date}T00:00:00`).toLocaleDateString("fr-FR", {
+                    day: "numeric",
+                    month: "short",
+                  })}
+                </span>
+              );
+            })()}
           {card.has_attachments && (
             <span className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground">
               <Paperclip className="size-3" />
@@ -410,6 +432,15 @@ export function BoardView({
     );
   }
 
+  function handleCardDueDateChange(cardId: number, dueDate: string | null) {
+    setColumns((prev) =>
+      prev.map((c) => ({
+        ...c,
+        cards: c.cards.map((card) => (card.id === cardId ? { ...card, due_date: dueDate } : card)),
+      })),
+    );
+  }
+
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over) return;
@@ -603,6 +634,7 @@ export function BoardView({
           card={editingCard}
           onClose={() => setEditingCard(null)}
           onRename={(title) => handleRenameCard(editingCard.id, title)}
+          onDueDateChange={(dueDate) => handleCardDueDateChange(editingCard.id, dueDate)}
         />
       )}
     </div>

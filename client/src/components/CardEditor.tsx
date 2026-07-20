@@ -3,6 +3,7 @@ import {
   AlignLeft,
   Calendar,
   CheckSquare,
+  Clock,
   Code,
   CreditCard,
   LayoutList,
@@ -157,13 +158,16 @@ export function CardEditor({
   card,
   onClose,
   onRename,
+  onDueDateChange,
 }: {
   card: Card;
   onClose: () => void;
   onRename: (title: string) => void;
+  onDueDateChange: (dueDate: string | null) => void;
 }) {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description);
+  const [dueDate, setDueDate] = useState(card.due_date ?? "");
   const [slashOpen, setSlashOpen] = useState(false);
   const [jiraError, setJiraError] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -192,6 +196,12 @@ export function CardEditor({
 
   function saveDescription(value: string) {
     void cardsApi.updateDescription(card.id, value);
+  }
+
+  function handleDueDateChange(value: string) {
+    setDueDate(value);
+    void cardsApi.setDueDate(card.id, value || null);
+    onDueDateChange(value || null);
   }
 
   function handleDescriptionChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
@@ -297,6 +307,30 @@ export function CardEditor({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
+          <section className="mb-6">
+            <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+              <Clock className="size-4 text-muted-foreground" />
+              Date d'échéance
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                value={dueDate}
+                onChange={(e) => handleDueDateChange(e.currentTarget.value)}
+              />
+              {dueDate && (
+                <button
+                  type="button"
+                  onClick={() => handleDueDateChange("")}
+                  className="text-xs text-muted-foreground hover:underline"
+                >
+                  Supprimer
+                </button>
+              )}
+            </div>
+          </section>
+
           <CustomFieldsSection cardId={card.id} />
 
           <section className="mb-6">
