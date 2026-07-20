@@ -381,7 +381,7 @@ function ColumnContainer({
         items={visibleCards.map((c) => `card-${c.id}`)}
         strategy={verticalListSortingStrategy}
       >
-        <div className="kb-scroll flex min-h-1.5 flex-col gap-2 overflow-y-auto px-2 pb-1">
+        <div className="kb-scroll flex min-h-1.5 flex-col gap-2 overflow-y-auto px-2 pb-1 pt-1.5">
           {visibleCards.map((card) => (
             <CardItem
               key={card.id}
