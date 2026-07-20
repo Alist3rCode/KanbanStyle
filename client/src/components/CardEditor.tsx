@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   AlignLeft,
   Calendar,
-  CheckSquare,
   Clock,
   Code,
   CreditCard,
@@ -569,7 +568,6 @@ export function CardEditor({
   }
 
   const slashItems = [
-    { icon: CheckSquare, label: "Checklist", action: () => insertAtCursor("\n- [ ] ") },
     {
       icon: Calendar,
       label: "Date du jour",
@@ -656,7 +654,7 @@ export function CardEditor({
               <textarea
                 ref={textareaRef}
                 className="min-h-32 w-full rounded-lg border border-input bg-background p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                placeholder="Ajouter une description... tapez / pour insérer une checklist, une date, un lien Jira ou un bloc de code"
+                placeholder="Ajouter une description... tapez / pour insérer une date, un lien Jira ou un bloc de code"
                 value={description}
                 onChange={handleDescriptionChange}
                 onBlur={(e) => saveDescription(e.currentTarget.value)}
