@@ -364,7 +364,15 @@ function ColumnContainer({
           onPointerDown={(e) => e.stopPropagation()}
         />
         {column.is_closing_column && (
-          <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+          <span
+            className={
+              column.color
+                ? `rounded px-1.5 py-0.5 text-[10px] font-medium ${headerTextClass} ${
+                    headerTextClass === "text-white" ? "bg-white/20" : "bg-black/10"
+                  }`
+                : "rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400"
+            }
+          >
             Fermeture
           </span>
         )}
