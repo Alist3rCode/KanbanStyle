@@ -5,6 +5,7 @@ import {
   CheckSquare,
   Code,
   CreditCard,
+  LayoutList,
   Link2,
   Paperclip,
   Trash2,
@@ -14,6 +15,143 @@ import {
 import { cardsApi, type Card } from "@/lib/cards";
 import { attachmentsApi, type Attachment } from "@/lib/attachments";
 import { jiraApi } from "@/lib/jira";
+import { customFieldsApi, type CardFieldValue, type ShowOnCard } from "@/lib/customFields";
+import { ShowOnCardToggle } from "@/components/ShowOnCardToggle";
+
+function CustomFieldInput({
+  field,
+  value,
+  onChange,
+  onCommit,
+}: {
+  field: CardFieldValue;
+  value: string;
+  onChange: (value: string) => void;
+  onCommit: (value: string) => void;
+}) {
+  const inputClass =
+    "w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+
+  if (field.field_type === "date") {
+    return (
+      <input
+        type="date"
+        className={inputClass}
+        value={value}
+        onChange={(e) => onChange(e.currentTarget.value)}
+        onBlur={(e) => onCommit(e.currentTarget.value)}
+      />
+    );
+  }
+
+  if (field.field_type === "checklist") {
+    return (
+      <textarea
+        rows={2}
+        className={`${inputClass} resize-y`}
+        placeholder="Une ligne par élément"
+        value={value}
+        onChange={(e) => onChange(e.currentTarget.value)}
+        onBlur={(e) => onCommit(e.currentTarget.value)}
+      />
+    );
+  }
+
+  if (field.field_type === "link") {
+    const fullUrl = field.link_prefix ? `${field.link_prefix}${value}` : value;
+    return (
+      <div className="flex flex-col gap-1">
+        <input
+          type="text"
+          className={inputClass}
+          placeholder={field.link_prefix ? "Suffixe (ex: id du ticket)" : "https://..."}
+          value={value}
+          onChange={(e) => onChange(e.currentTarget.value)}
+          onBlur={(e) => onCommit(e.currentTarget.value)}
+        />
+        {value && (
+          <a
+            href={fullUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="truncate text-xs text-primary hover:underline"
+          >
+            {fullUrl}
+          </a>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <input
+      type="text"
+      className={inputClass}
+      placeholder={field.field_type === "jira_link" ? "Clé du ticket, ex: PROJ-123" : undefined}
+      value={value}
+      onChange={(e) => onChange(e.currentTarget.value)}
+      onBlur={(e) => onCommit(e.currentTarget.value)}
+    />
+  );
+}
+
+function CustomFieldsSection({ cardId }: { cardId: number }) {
+  const [fields, setFields] = useState<CardFieldValue[]>([]);
+
+  useEffect(() => {
+    customFieldsApi.valuesForCard(cardId).then(setFields);
+  }, [cardId]);
+
+  function handleChange(customFieldId: number, value: string) {
+    setFields((prev) =>
+      prev.map((f) => (f.custom_field_id === customFieldId ? { ...f, value } : f)),
+    );
+  }
+
+  function handleCommit(customFieldId: number, value: string) {
+    void customFieldsApi.setValueForCard(cardId, customFieldId, value);
+  }
+
+  function handleShowOnCardChange(customFieldId: number, value: ShowOnCard) {
+    setFields((prev) =>
+      prev.map((f) => (f.custom_field_id === customFieldId ? { ...f, show_on_card: value } : f)),
+    );
+    void customFieldsApi.setShowOnCard(customFieldId, value);
+  }
+
+  if (fields.length === 0) return null;
+
+  return (
+    <section className="mb-6">
+      <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+        <LayoutList className="size-4 text-muted-foreground" />
+        Champs personnalisés
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {fields.map((field) => (
+          <div key={field.custom_field_id}>
+            <div className="mb-1 flex items-center gap-1.5">
+              <label className="block text-xs font-medium text-muted-foreground">
+                {field.name}
+              </label>
+              <ShowOnCardToggle
+                value={field.show_on_card}
+                onChange={(value) => handleShowOnCardChange(field.custom_field_id, value)}
+                size="size-3.5"
+              />
+            </div>
+            <CustomFieldInput
+              field={field}
+              value={field.value}
+              onChange={(value) => handleChange(field.custom_field_id, value)}
+              onCommit={(value) => handleCommit(field.custom_field_id, value)}
+            />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 export function CardEditor({
   card,
@@ -31,10 +169,18 @@ export function CardEditor({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     attachmentsApi.list(card.id).then(setAttachments);
   }, [card.id]);
+
+  useEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    el.style.height = "0px";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [title]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -124,8 +270,9 @@ export function CardEditor({
         <div className="flex items-start gap-2 border-b border-border px-4 py-3">
           <CreditCard className="mt-1.5 size-5 shrink-0 text-muted-foreground" />
           <textarea
+            ref={titleRef}
             rows={1}
-            className="mt-0.5 flex-1 resize-none bg-transparent text-lg font-semibold outline-none"
+            className="mt-0.5 flex-1 resize-none overflow-hidden bg-transparent text-lg font-semibold outline-none"
             value={title}
             onChange={(e) => setTitle(e.currentTarget.value)}
             onBlur={() => {
@@ -150,6 +297,8 @@ export function CardEditor({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
+          <CustomFieldsSection cardId={card.id} />
+
           <section className="mb-6">
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
               <AlignLeft className="size-4 text-muted-foreground" />

@@ -35,7 +35,15 @@ interface ColumnWithCards extends Column {
   cards: Card[];
 }
 
-function CardItem({ card, onOpen }: { card: Card; onOpen: () => void }) {
+function CardItem({
+  card,
+  visibleFields,
+  onOpen,
+}: {
+  card: Card;
+  visibleFields: { name: string; value: string }[];
+  onOpen: () => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `card-${card.id}`,
     data: { type: "card", columnId: card.column_id },
@@ -55,6 +63,16 @@ function CardItem({ card, onOpen }: { card: Card; onOpen: () => void }) {
       className="group cursor-pointer rounded-lg border border-border/60 bg-card px-3 py-2 text-sm text-card-foreground shadow-sm transition hover:border-primary/40 hover:shadow-md"
     >
       <p className="whitespace-pre-wrap break-words">{card.title}</p>
+      {visibleFields.length > 0 && (
+        <div className="mt-1.5 flex flex-col gap-0.5">
+          {visibleFields.map((field) => (
+            <p key={field.name} className="truncate text-xs text-muted-foreground">
+              <span className="font-medium">{field.name}:</span>{" "}
+              {field.value || <span className="italic">vide</span>}
+            </p>
+          ))}
+        </div>
+      )}
       {(card.closed || card.has_attachments) && (
         <div className="mt-1.5 flex items-center gap-1.5">
           {card.closed && (
@@ -126,6 +144,7 @@ function ColumnMenu({
 function ColumnContainer({
   column,
   visibleCards,
+  visibleFieldsByCard,
   onRename,
   onToggleClosingRule,
   onDelete,
@@ -134,6 +153,7 @@ function ColumnContainer({
 }: {
   column: ColumnWithCards;
   visibleCards: Card[];
+  visibleFieldsByCard: Map<number, { name: string; value: string }[]>;
   onRename: (title: string) => void;
   onToggleClosingRule: (value: boolean) => void;
   onDelete: () => void;
@@ -197,7 +217,12 @@ function ColumnContainer({
       >
         <div className="kb-scroll flex min-h-1.5 flex-col gap-2 overflow-y-auto px-2 pb-1">
           {visibleCards.map((card) => (
-            <CardItem key={card.id} card={card} onOpen={() => onOpenCard(card)} />
+            <CardItem
+              key={card.id}
+              card={card}
+              visibleFields={visibleFieldsByCard.get(card.id) ?? []}
+              onOpen={() => onOpenCard(card)}
+            />
           ))}
         </div>
       </SortableContext>
@@ -269,11 +294,13 @@ export function BoardView({
   boardTitle,
   onHome,
   onOpenSettings,
+  onOpenBoardSettings,
 }: {
   boardId: number;
   boardTitle: string;
   onHome: () => void;
   onOpenSettings: () => void;
+  onOpenBoardSettings: () => void;
 }) {
   const [columns, setColumns] = useState<ColumnWithCards[]>([]);
   const [addingColumn, setAddingColumn] = useState(false);
@@ -283,6 +310,9 @@ export function BoardView({
   const [hideClosed, setHideClosed] = useState(false);
   const [onlyWithAttachments, setOnlyWithAttachments] = useState(false);
   const [fieldValuesByCard, setFieldValuesByCard] = useState<Map<number, string[]>>(new Map());
+  const [visibleFieldsByCard, setVisibleFieldsByCard] = useState<
+    Map<number, { name: string; value: string }[]>
+  >(new Map());
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   useEffect(() => {
@@ -294,11 +324,19 @@ export function BoardView({
       setColumns(withCards);
 
       const values = await customFieldsApi.fieldValuesForBoard(boardId);
-      const byCard = new Map<number, string[]>();
-      for (const { card_id, value } of values) {
-        byCard.set(card_id, [...(byCard.get(card_id) ?? []), value]);
+      const searchByCard = new Map<number, string[]>();
+      const visibleByCard = new Map<number, { name: string; value: string }[]>();
+      for (const { card_id, name, show_on_card, value } of values) {
+        if (value) {
+          searchByCard.set(card_id, [...(searchByCard.get(card_id) ?? []), value]);
+        }
+        const shouldShow = show_on_card === "always" || (show_on_card === "if_not_empty" && value);
+        if (shouldShow) {
+          visibleByCard.set(card_id, [...(visibleByCard.get(card_id) ?? []), { name, value }]);
+        }
       }
-      setFieldValuesByCard(byCard);
+      setFieldValuesByCard(searchByCard);
+      setVisibleFieldsByCard(visibleByCard);
     })();
   }, [boardId]);
 
@@ -448,7 +486,16 @@ export function BoardView({
 
       {/* Board header strip over the coloured board background */}
       <div className="flex flex-wrap items-center gap-3 bg-black/10 px-4 py-2.5 backdrop-blur-sm">
-        <h1 className="mr-1 truncate text-lg font-bold">{boardTitle}</h1>
+        <h1 className="truncate text-lg font-bold">{boardTitle}</h1>
+        <button
+          type="button"
+          aria-label="Paramètres du tableau"
+          title="Paramètres du tableau"
+          onClick={onOpenBoardSettings}
+          className="mr-1 rounded-md p-1.5 text-board-foreground/80 transition hover:bg-white/15 hover:text-board-foreground"
+        >
+          <Settings className="size-4" />
+        </button>
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-board-foreground/60" />
           <input
@@ -487,6 +534,7 @@ export function BoardView({
                 key={column.id}
                 column={column}
                 visibleCards={column.cards.filter(isCardVisible)}
+                visibleFieldsByCard={visibleFieldsByCard}
                 onRename={(title) => handleRenameColumn(column.id, title)}
                 onToggleClosingRule={(value) => handleToggleClosingRule(column.id, value)}
                 onDelete={() => handleDeleteColumn(column.id)}

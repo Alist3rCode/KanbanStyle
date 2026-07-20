@@ -15,6 +15,7 @@ function App() {
   const [view, setView] = useState<View>("boards");
   const [openBoard, setOpenBoard] = useState<Board | null>(null);
   const [templateBoard, setTemplateBoard] = useState<Board | null>(null);
+  const [templateOrigin, setTemplateOrigin] = useState<"boards" | "board">("boards");
   const { theme, setTheme } = useTheme();
 
   useEffect(() => {
@@ -36,6 +37,11 @@ function App() {
         boardTitle={openBoard.title}
         onHome={() => setView("boards")}
         onOpenSettings={() => setView("settings")}
+        onOpenBoardSettings={() => {
+          setTemplateBoard(openBoard);
+          setTemplateOrigin("board");
+          setView("template");
+        }}
       />
     );
   }
@@ -45,6 +51,7 @@ function App() {
         boardId={templateBoard.id}
         boardTitle={templateBoard.title}
         onHome={() => setView("boards")}
+        onBack={() => setView(templateOrigin === "board" ? "board" : "boards")}
       />
     );
   }
@@ -58,6 +65,7 @@ function App() {
       }}
       onOpenTemplate={(board) => {
         setTemplateBoard(board);
+        setTemplateOrigin("boards");
         setView("template");
       }}
     />

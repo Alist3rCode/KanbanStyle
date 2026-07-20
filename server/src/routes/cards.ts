@@ -12,19 +12,19 @@ function closingRuleFor(columnId: number | string): { closed: number; closedAt: 
   return { closed, closedAt: closed ? new Date().toISOString() : null };
 }
 
-/** Instantiates the board's custom-field template on every new card (US-04). */
+/** Instantiates the board's custom-field template on every new card (US-04), pre-filled with each field's default value (US-10). */
 function instantiateTemplate(cardId: number | bigint, columnId: string) {
   const fields = db
     .prepare(
-      `SELECT id FROM custom_fields
+      `SELECT id, default_value FROM custom_fields
        WHERE board_id = (SELECT board_id FROM columns WHERE id = ?)`,
     )
-    .all(columnId) as { id: number }[];
+    .all(columnId) as { id: number; default_value: string }[];
   const insert = db.prepare(
-    "INSERT INTO field_values (card_id, custom_field_id, value) VALUES (?, ?, '')",
+    "INSERT INTO field_values (card_id, custom_field_id, value) VALUES (?, ?, ?)",
   );
-  const insertAll = db.transaction((rows: { id: number }[]) => {
-    for (const field of rows) insert.run(cardId, field.id);
+  const insertAll = db.transaction((rows: typeof fields) => {
+    for (const field of rows) insert.run(cardId, field.id, field.default_value);
   });
   insertAll(fields);
 }
