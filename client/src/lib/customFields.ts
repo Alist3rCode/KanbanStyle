@@ -73,6 +73,9 @@ export const customFieldsApi = {
     }),
   reorder: (id: number, position: number) =>
     api.patch<void>(`/custom-fields/${id}`, { position }),
+  rename: (id: number, name: string) => api.patch<void>(`/custom-fields/${id}`, { name }),
+  setLinkPrefix: (id: number, link_prefix: string) =>
+    api.patch<void>(`/custom-fields/${id}`, { link_prefix }),
   setDefaultValue: (id: number, default_value: string) =>
     api.patch<void>(`/custom-fields/${id}`, { default_value }),
   setShowOnCard: (id: number, show_on_card: ShowOnCard) =>

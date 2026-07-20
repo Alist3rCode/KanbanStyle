@@ -36,6 +36,7 @@ import {
   labelsApi,
   LABEL_COLORS,
   LABEL_COLOR_CLASSES,
+  LABEL_TEXT_CLASSES,
   type CardLabelOption,
   type LabelColor,
 } from "@/lib/labels";
@@ -64,7 +65,7 @@ function StatusBadgeButton({
   useClickOutside(containerRef, () => setOpen(false), open);
   const current = columns.find((c) => c.id === currentColumnId);
   const colorClass = current?.color
-    ? `${LABEL_COLOR_CLASSES[current.color as keyof typeof LABEL_COLOR_CLASSES]} text-white`
+    ? `${LABEL_COLOR_CLASSES[current.color as keyof typeof LABEL_COLOR_CLASSES]} ${LABEL_TEXT_CLASSES[current.color as keyof typeof LABEL_TEXT_CLASSES]}`
     : "bg-muted";
 
   return (
@@ -831,6 +832,7 @@ export function CardEditor({
   onDueDateChange,
   onCoverChange,
   onLabelsChange,
+  onFieldsChange,
   onMove,
   onDelete,
 }: {
@@ -843,6 +845,7 @@ export function CardEditor({
   onDueDateChange: (dueDate: string | null) => void;
   onCoverChange: (cover: { cover_color: string | null; cover_image: string | null }) => void;
   onLabelsChange: (labels: { id: number; name: string; color: string }[]) => void;
+  onFieldsChange: (fields: CardFieldValue[]) => void;
   onMove: (columnId: number) => void;
   onDelete: () => void;
 }) {
@@ -900,6 +903,11 @@ export function CardEditor({
     onLabelsChange(attachedLabels);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardLabels]);
+
+  useEffect(() => {
+    onFieldsChange(fields);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fields]);
 
   useEffect(() => {
     const el = titleRef.current;

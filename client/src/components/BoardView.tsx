@@ -29,8 +29,8 @@ import {
 } from "lucide-react";
 import { columnsApi, type Column } from "@/lib/columns";
 import { cardsApi, dueStatus, type Card } from "@/lib/cards";
-import { customFieldsApi, type FieldType } from "@/lib/customFields";
-import { labelsApi, LABEL_COLORS, LABEL_COLOR_CLASSES, type Label } from "@/lib/labels";
+import { customFieldsApi, type CardFieldValue, type FieldType } from "@/lib/customFields";
+import { labelsApi, LABEL_COLORS, LABEL_COLOR_CLASSES, LABEL_TEXT_CLASSES, type Label } from "@/lib/labels";
 import { coverClasses } from "@/lib/covers";
 import { authApi } from "@/lib/auth";
 import { checklistProgress } from "@/lib/checklist";
@@ -336,7 +336,9 @@ function ColumnContainer({
     setNewCardTitle("");
   }
 
-  const headerTextClass = column.color ? "text-white" : "text-list-foreground";
+  const headerTextClass = column.color
+    ? LABEL_TEXT_CLASSES[column.color as keyof typeof LABEL_TEXT_CLASSES]
+    : "text-list-foreground";
 
   return (
     <div
@@ -593,11 +595,28 @@ export function BoardView({
     await columnsApi.remove(id);
   }
 
+  function handleCardFieldsChange(cardId: number, fields: CardFieldValue[]) {
+    const searchValues = fields.map((f) => f.value).filter(Boolean);
+    const visible = fields
+      .filter((f) => f.show_on_card === "always" || (f.show_on_card === "if_not_empty" && f.value))
+      .map((f) => ({ name: f.name, field_type: f.field_type, value: f.value }));
+    setFieldValuesByCard((prev) => new Map(prev).set(cardId, searchValues));
+    setVisibleFieldsByCard((prev) => new Map(prev).set(cardId, visible));
+  }
+
+  async function refreshCardFields(cardId: number) {
+    const values = await customFieldsApi.valuesForCard(cardId);
+    handleCardFieldsChange(cardId, values);
+  }
+
   async function handleAddCard(columnId: number, title: string) {
     const card = await cardsApi.create(columnId, title);
     setColumns((prev) =>
       prev.map((c) => (c.id === columnId ? { ...c, cards: [...c.cards, card] } : c)),
     );
+    // New cards get the board's template fields instantiated server-side (US-04) —
+    // fetch them so "always"/"if_not_empty" fields show up immediately, not just after a reload.
+    void refreshCardFields(card.id);
   }
 
   function findColumnOfCard(cardId: number) {
@@ -903,6 +922,7 @@ export function BoardView({
           onLabelsChange={(labels) =>
             setCardLabelsByCard((prev) => new Map(prev).set(editingCard.id, labels))
           }
+          onFieldsChange={(fields) => handleCardFieldsChange(editingCard.id, fields)}
           onMove={(destColumnId) => handleMoveCardTo(editingCard.id, destColumnId)}
           onDelete={() => {
             handleDeleteCard(editingCard.id);
