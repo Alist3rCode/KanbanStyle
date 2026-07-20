@@ -66,8 +66,22 @@ function CardItem({
         transition,
         opacity: isDragging ? 0.5 : 1,
       }}
-      className="group cursor-pointer rounded-lg border border-border/60 bg-card px-3 py-2 text-sm text-card-foreground shadow-sm transition hover:border-primary/40 hover:shadow-md"
+      className="group cursor-pointer overflow-hidden rounded-lg border border-border/60 bg-card text-sm text-card-foreground shadow-sm transition hover:border-primary/40 hover:shadow-md"
     >
+      {card.cover_image ? (
+        <img
+          src={cardsApi.coverImageUrl(card.id, card.cover_image)}
+          alt=""
+          className="h-24 w-full object-cover"
+        />
+      ) : (
+        card.cover_color && (
+          <div
+            className={`h-8 w-full ${LABEL_COLOR_CLASSES[card.cover_color as keyof typeof LABEL_COLOR_CLASSES]}`}
+          />
+        )
+      )}
+      <div className="px-3 py-2">
       {labels.length > 0 && (
         <div className="mb-1.5 flex flex-wrap gap-1">
           {labels.map((label) => (
@@ -136,6 +150,7 @@ function CardItem({
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -584,6 +599,18 @@ export function BoardView({
     );
   }
 
+  function handleCardCoverChange(
+    cardId: number,
+    cover: { cover_color: string | null; cover_image: string | null },
+  ) {
+    setColumns((prev) =>
+      prev.map((c) => ({
+        ...c,
+        cards: c.cards.map((card) => (card.id === cardId ? { ...card, ...cover } : card)),
+      })),
+    );
+  }
+
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over) return;
@@ -796,6 +823,7 @@ export function BoardView({
           onClose={() => setEditingCard(null)}
           onRename={(title) => handleRenameCard(editingCard.id, title)}
           onDueDateChange={(dueDate) => handleCardDueDateChange(editingCard.id, dueDate)}
+          onCoverChange={(cover) => handleCardCoverChange(editingCard.id, cover)}
           onLabelsChange={(labels) =>
             setCardLabelsByCard((prev) => new Map(prev).set(editingCard.id, labels))
           }

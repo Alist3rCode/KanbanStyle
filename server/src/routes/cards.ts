@@ -1,7 +1,22 @@
 import { Router } from "express";
-import { db } from "../db.js";
+import multer from "multer";
+import { randomUUID } from "node:crypto";
+import { mkdirSync, unlink } from "node:fs";
+import path from "node:path";
+import { db, DATA_DIR } from "../db.js";
+import { isLabelColor } from "./labels.js";
 
 export const cardsRouter = Router();
+
+const COVERS_DIR = path.join(DATA_DIR, "covers");
+mkdirSync(COVERS_DIR, { recursive: true });
+
+const uploadCover = multer({
+  storage: multer.diskStorage({
+    destination: COVERS_DIR,
+    filename: (_req, file, cb) => cb(null, `${randomUUID()}${path.extname(file.originalname)}`),
+  }),
+});
 
 /** A card's closed/closed_at always mirrors its current column's closing rule (US-05). */
 function closingRuleFor(columnId: number | string): { closed: number; closedAt: string | null } {
@@ -33,6 +48,7 @@ cardsRouter.get("/columns/:columnId/cards", (req, res) => {
   const cards = db
     .prepare(
       `SELECT id, column_id, title, description, position, closed, closed_at, due_date,
+              cover_color, cover_image,
               EXISTS(SELECT 1 FROM attachments WHERE attachments.card_id = cards.id) AS has_attachments
        FROM cards WHERE column_id = ? ORDER BY position, id`,
     )
@@ -73,16 +89,23 @@ cardsRouter.post("/columns/:columnId/cards", (req, res) => {
     closed: Boolean(closed),
     closed_at: closedAt,
     due_date: null,
+    cover_color: null,
+    cover_image: null,
     has_attachments: false,
   });
 });
 
 cardsRouter.patch("/cards/:id", (req, res) => {
-  const { title, description, due_date } = req.body as {
+  const { title, description, due_date, cover_color } = req.body as {
     title?: string;
     description?: string;
     due_date?: string | null;
+    cover_color?: string | null;
   };
+  if (cover_color !== undefined && cover_color !== null && !isLabelColor(cover_color)) {
+    res.status(400).json({ error: "cover_color doit être une couleur valide" });
+    return;
+  }
   if (title !== undefined) {
     db.prepare("UPDATE cards SET title = ? WHERE id = ?").run(title, req.params.id);
   }
@@ -91,6 +114,46 @@ cardsRouter.patch("/cards/:id", (req, res) => {
   }
   if (due_date !== undefined) {
     db.prepare("UPDATE cards SET due_date = ? WHERE id = ?").run(due_date || null, req.params.id);
+  }
+  if (cover_color !== undefined) {
+    // Setting a color cover clears any image cover, and vice versa (US-14: one cover at a time).
+    db.prepare("UPDATE cards SET cover_color = ?, cover_image = NULL WHERE id = ?").run(
+      cover_color,
+      req.params.id,
+    );
+  }
+  res.status(204).end();
+});
+
+cardsRouter.post("/cards/:id/cover-image", uploadCover.single("file"), (req, res) => {
+  if (!req.file) {
+    res.status(400).json({ error: "file est requis" });
+    return;
+  }
+  const previous = db
+    .prepare("SELECT cover_image FROM cards WHERE id = ?")
+    .get(req.params.id) as { cover_image: string | null } | undefined;
+  db.prepare("UPDATE cards SET cover_image = ?, cover_color = NULL WHERE id = ?").run(
+    req.file.filename,
+    req.params.id,
+  );
+  if (previous?.cover_image) {
+    unlink(path.join(COVERS_DIR, previous.cover_image), () => {});
+  }
+  res.status(201).json({ cover_image: req.file.filename });
+});
+
+cardsRouter.get("/cards/:id/cover-image/:file", (req, res) => {
+  res.sendFile(path.join(COVERS_DIR, path.basename(req.params.file)));
+});
+
+cardsRouter.delete("/cards/:id/cover-image", (req, res) => {
+  const card = db
+    .prepare("SELECT cover_image FROM cards WHERE id = ?")
+    .get(req.params.id) as { cover_image: string | null } | undefined;
+  db.prepare("UPDATE cards SET cover_image = NULL WHERE id = ?").run(req.params.id);
+  if (card?.cover_image) {
+    unlink(path.join(COVERS_DIR, card.cover_image), () => {});
   }
   res.status(204).end();
 });
