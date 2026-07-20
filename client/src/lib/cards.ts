@@ -15,6 +15,8 @@ export const cardsApi = {
   create: (columnId: number, title: string) =>
     api.post<Card>(`/columns/${columnId}/cards`, { title }),
   rename: (id: number, title: string) => api.patch<void>(`/cards/${id}`, { title }),
+  updateDescription: (id: number, description: string) =>
+    api.patch<void>(`/cards/${id}`, { description }),
   move: (id: number, column_id: number, position: number) =>
     api.post<void>(`/cards/${id}/move`, { column_id, position }),
   remove: (id: number) => api.delete<void>(`/cards/${id}`),

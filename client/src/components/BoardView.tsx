@@ -18,12 +18,13 @@ import { CSS } from "@dnd-kit/utilities";
 import { columnsApi, type Column } from "@/lib/columns";
 import { cardsApi, type Card } from "@/lib/cards";
 import { Button } from "@/components/ui/button";
+import { CardEditor } from "@/components/CardEditor";
 
 interface ColumnWithCards extends Column {
   cards: Card[];
 }
 
-function CardItem({ card }: { card: Card }) {
+function CardItem({ card, onOpen }: { card: Card; onOpen: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `card-${card.id}`,
     data: { type: "card", columnId: card.column_id },
@@ -34,6 +35,7 @@ function CardItem({ card }: { card: Card }) {
       ref={setNodeRef}
       {...attributes}
       {...listeners}
+      onClick={onOpen}
       style={{ transform: CSS.Translate.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
       className="cursor-grab rounded-md border border-border bg-card p-2 text-sm active:cursor-grabbing"
     >
@@ -55,12 +57,14 @@ function ColumnContainer({
   onToggleClosingRule,
   onDelete,
   onAddCard,
+  onOpenCard,
 }: {
   column: ColumnWithCards;
   onRename: (title: string) => void;
   onToggleClosingRule: (value: boolean) => void;
   onDelete: () => void;
   onAddCard: (title: string) => void;
+  onOpenCard: (card: Card) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `col-${column.id}`,
@@ -101,7 +105,7 @@ function ColumnContainer({
       >
         <div className="flex min-h-8 flex-col gap-2">
           {column.cards.map((card) => (
-            <CardItem key={card.id} card={card} />
+            <CardItem key={card.id} card={card} onOpen={() => onOpenCard(card)} />
           ))}
         </div>
       </SortableContext>
@@ -127,6 +131,7 @@ function ColumnContainer({
 export function BoardView({ boardId, boardTitle, onBack }: { boardId: number; boardTitle: string; onBack: () => void }) {
   const [columns, setColumns] = useState<ColumnWithCards[]>([]);
   const [newColumnTitle, setNewColumnTitle] = useState("");
+  const [editingCard, setEditingCard] = useState<Card | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   useEffect(() => {
@@ -185,6 +190,15 @@ export function BoardView({ boardId, boardTitle, onBack }: { boardId: number; bo
 
   function findColumnOfCard(cardId: number) {
     return columns.find((c) => c.cards.some((card) => card.id === cardId));
+  }
+
+  function handleRenameCard(cardId: number, title: string) {
+    setColumns((prev) =>
+      prev.map((c) => ({
+        ...c,
+        cards: c.cards.map((card) => (card.id === cardId ? { ...card, title } : card)),
+      })),
+    );
   }
 
   async function handleDragEnd(event: DragEndEvent) {
@@ -267,6 +281,7 @@ export function BoardView({ boardId, boardTitle, onBack }: { boardId: number; bo
                 onToggleClosingRule={(value) => handleToggleClosingRule(column.id, value)}
                 onDelete={() => handleDeleteColumn(column.id)}
                 onAddCard={(title) => handleAddCard(column.id, title)}
+                onOpenCard={setEditingCard}
               />
             ))}
 
@@ -283,6 +298,14 @@ export function BoardView({ boardId, boardTitle, onBack }: { boardId: number; bo
           </div>
         </SortableContext>
       </DndContext>
+
+      {editingCard && (
+        <CardEditor
+          card={editingCard}
+          onClose={() => setEditingCard(null)}
+          onRename={(title) => handleRenameCard(editingCard.id, title)}
+        />
+      )}
     </main>
   );
 }
