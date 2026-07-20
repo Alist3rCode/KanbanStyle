@@ -5,6 +5,7 @@ import {
   Clock,
   Code,
   CreditCard,
+  Image,
   LayoutList,
   Link2,
   Paperclip,
@@ -31,8 +32,105 @@ import {
   type CardLabelOption,
   type LabelColor,
 } from "@/lib/labels";
+import { GRADIENT_COVERS, coverClasses } from "@/lib/covers";
 import { ShowOnCardToggle } from "@/components/ShowOnCardToggle";
 import { parseChecklist, serializeChecklist, type ChecklistItem } from "@/lib/checklist";
+import { useClickOutside } from "@/hooks/useClickOutside";
+
+function CoverMenuButton({
+  coverColor,
+  hasCover,
+  onPickColor,
+  onUploadImage,
+  onRemove,
+}: {
+  coverColor: string | null;
+  hasCover: boolean;
+  onPickColor: (color: string) => void;
+  onUploadImage: (file: File) => void;
+  onRemove: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  useClickOutside(containerRef, () => setOpen(false), open);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        aria-label="Couverture"
+        title="Couverture"
+        onClick={() => setOpen((v) => !v)}
+        className="rounded-md p-1.5 text-muted-foreground transition hover:bg-accent"
+      >
+        <Image className="size-5" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-9 z-20 w-64 rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-lg">
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">Couleurs</p>
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {LABEL_COLORS.map((color) => (
+              <button
+                key={color}
+                type="button"
+                aria-label={color}
+                onClick={() => onPickColor(color)}
+                className={`h-7 w-9 rounded ${LABEL_COLOR_CLASSES[color]} ${
+                  coverColor === color ? "ring-2 ring-offset-2 ring-ring" : ""
+                }`}
+              />
+            ))}
+          </div>
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">Dégradés</p>
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {GRADIENT_COVERS.map((gradient) => (
+              <button
+                key={gradient.id}
+                type="button"
+                aria-label={gradient.label}
+                title={gradient.label}
+                onClick={() => onPickColor(gradient.id)}
+                className={`h-7 w-9 rounded ${gradient.classes} ${
+                  coverColor === gradient.id ? "ring-2 ring-offset-2 ring-ring" : ""
+                }`}
+              />
+            ))}
+          </div>
+          <div className="flex flex-col gap-1.5 border-t border-border pt-2.5 text-xs">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="text-left text-primary hover:underline"
+            >
+              Importer une image
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.currentTarget.files?.[0];
+                if (file) onUploadImage(file);
+                e.currentTarget.value = "";
+              }}
+            />
+            {hasCover && (
+              <button
+                type="button"
+                onClick={onRemove}
+                className="text-left text-muted-foreground hover:underline"
+              >
+                Retirer la couverture
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function LabelsSection({
   cardId,
@@ -467,6 +565,7 @@ export function CardEditor({
   onClose,
   onRename,
   onDueDateChange,
+  onCoverChange,
   onLabelsChange,
 }: {
   card: Card;
@@ -474,11 +573,14 @@ export function CardEditor({
   onClose: () => void;
   onRename: (title: string) => void;
   onDueDateChange: (dueDate: string | null) => void;
+  onCoverChange: (cover: { cover_color: string | null; cover_image: string | null }) => void;
   onLabelsChange: (labels: { id: number; name: string; color: string }[]) => void;
 }) {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description);
   const [dueDate, setDueDate] = useState(card.due_date ?? "");
+  const [coverColor, setCoverColor] = useState(card.cover_color);
+  const [coverImage, setCoverImage] = useState(card.cover_image);
   const [slashOpen, setSlashOpen] = useState(false);
   const [jiraError, setJiraError] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -513,6 +615,31 @@ export function CardEditor({
     setDueDate(value);
     void cardsApi.setDueDate(card.id, value || null);
     onDueDateChange(value || null);
+  }
+
+  function handleCoverColorChange(color: string) {
+    setCoverColor(color);
+    setCoverImage(null);
+    void cardsApi.setCoverColor(card.id, color);
+    onCoverChange({ cover_color: color, cover_image: null });
+  }
+
+  async function handleCoverImageUpload(file: File) {
+    const { cover_image } = await cardsApi.setCoverImage(card.id, file);
+    setCoverImage(cover_image);
+    setCoverColor(null);
+    onCoverChange({ cover_color: null, cover_image });
+  }
+
+  async function handleRemoveCover() {
+    if (coverImage) {
+      await cardsApi.removeCoverImage(card.id);
+    } else if (coverColor) {
+      await cardsApi.setCoverColor(card.id, null);
+    }
+    setCoverColor(null);
+    setCoverImage(null);
+    onCoverChange({ cover_color: null, cover_image: null });
   }
 
   function handleDescriptionChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
@@ -605,6 +732,13 @@ export function CardEditor({
               }
             }}
           />
+          <CoverMenuButton
+            coverColor={coverColor}
+            hasCover={Boolean(coverColor || coverImage)}
+            onPickColor={handleCoverColorChange}
+            onUploadImage={handleCoverImageUpload}
+            onRemove={handleRemoveCover}
+          />
           <button
             type="button"
             aria-label="Fermer"
@@ -614,6 +748,16 @@ export function CardEditor({
             <X className="size-5" />
           </button>
         </div>
+
+        {coverImage ? (
+          <img
+            src={cardsApi.coverImageUrl(card.id, coverImage)}
+            alt=""
+            className="h-36 w-full shrink-0 object-cover"
+          />
+        ) : (
+          coverColor && <div className={`h-16 w-full shrink-0 ${coverClasses(coverColor)}`} />
+        )}
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 py-4">

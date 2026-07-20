@@ -3,7 +3,7 @@ import { db } from "../db.js";
 
 export const labelsRouter = Router();
 
-const LABEL_COLORS = [
+export const LABEL_COLORS = [
   "green",
   "yellow",
   "orange",
@@ -16,7 +16,7 @@ const LABEL_COLORS = [
   "gray",
 ] as const;
 
-function isLabelColor(value: unknown): value is (typeof LABEL_COLORS)[number] {
+export function isLabelColor(value: unknown): value is (typeof LABEL_COLORS)[number] {
   return typeof value === "string" && (LABEL_COLORS as readonly string[]).includes(value);
 }
 
