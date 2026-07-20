@@ -10,6 +10,7 @@ import { columnsRouter } from "./routes/columns.js";
 import { cardsRouter } from "./routes/cards.js";
 import { settingsRouter } from "./routes/settings.js";
 import { jiraRouter } from "./routes/jira.js";
+import { attachmentsRouter } from "./routes/attachments.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -55,7 +56,16 @@ app.get("/api/auth/me", (req, res) => {
   res.json({ authenticated: Boolean(req.session.userId) });
 });
 
-app.use("/api", requireAuth, boardsRouter, columnsRouter, cardsRouter, settingsRouter, jiraRouter);
+app.use(
+  "/api",
+  requireAuth,
+  boardsRouter,
+  columnsRouter,
+  cardsRouter,
+  settingsRouter,
+  jiraRouter,
+  attachmentsRouter,
+);
 
 const clientDist = process.env.CLIENT_DIST_DIR ?? path.join(__dirname, "../../client/dist");
 app.use(express.static(clientDist));

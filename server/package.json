@@ -12,13 +12,15 @@
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.3.0",
     "express": "^4.21.0",
-    "express-session": "^1.18.0"
+    "express-session": "^1.18.0",
+    "multer": "^2.2.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "2.4.6",
     "@types/better-sqlite3": "^7.6.11",
     "@types/express": "^4.17.21",
     "@types/express-session": "^1.18.0",
+    "@types/multer": "^2.2.0",
     "@types/node": "^22.7.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
