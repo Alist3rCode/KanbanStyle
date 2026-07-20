@@ -425,12 +425,18 @@ function ChecklistEditor({
 
 const FIELD_TYPES = Object.keys(FIELD_TYPE_LABELS) as FieldType[];
 
+function fieldHasValue(field: CardFieldValue): boolean {
+  if (field.field_type === "checklist") return parseChecklist(field.value).length > 0;
+  return field.value.trim().length > 0;
+}
+
 function CustomFieldsSection({ cardId }: { cardId: number }) {
   const [fields, setFields] = useState<CardFieldValue[]>([]);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<FieldType>("text");
   const [newLinkPrefix, setNewLinkPrefix] = useState("");
+  const [fieldPendingDelete, setFieldPendingDelete] = useState<CardFieldValue | null>(null);
 
   useEffect(() => {
     customFieldsApi.valuesForCard(cardId).then(setFields);
@@ -451,6 +457,20 @@ function CustomFieldsSection({ cardId }: { cardId: number }) {
       prev.map((f) => (f.custom_field_id === customFieldId ? { ...f, show_on_card: value } : f)),
     );
     void customFieldsApi.setShowOnCard(customFieldId, value);
+  }
+
+  function requestDelete(field: CardFieldValue) {
+    if (fieldHasValue(field)) {
+      setFieldPendingDelete(field);
+    } else {
+      void performDelete(field.custom_field_id);
+    }
+  }
+
+  async function performDelete(customFieldId: number) {
+    await customFieldsApi.remove(customFieldId);
+    setFields((prev) => prev.filter((f) => f.custom_field_id !== customFieldId));
+    setFieldPendingDelete(null);
   }
 
   async function handleCreate() {
@@ -482,7 +502,7 @@ function CustomFieldsSection({ cardId }: { cardId: number }) {
           {fields.map((field) => (
             <div key={field.custom_field_id}>
               <div className="mb-1 flex items-center gap-1.5">
-                <label className="block text-xs font-medium text-muted-foreground">
+                <label className="block flex-1 truncate text-xs font-medium text-muted-foreground">
                   {field.name}
                 </label>
                 <ShowOnCardToggle
@@ -490,6 +510,14 @@ function CustomFieldsSection({ cardId }: { cardId: number }) {
                   onChange={(value) => handleShowOnCardChange(field.custom_field_id, value)}
                   size="size-3.5"
                 />
+                <button
+                  type="button"
+                  aria-label="Supprimer le champ"
+                  onClick={() => requestDelete(field)}
+                  className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-destructive"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
               </div>
               <CustomFieldInput
                 field={field}
@@ -564,6 +592,39 @@ function CustomFieldsSection({ cardId }: { cardId: number }) {
           Ajouter un champ
         </button>
       )}
+
+      {fieldPendingDelete && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setFieldPendingDelete(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-xl border border-border bg-card p-4 text-card-foreground shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="mb-1 text-sm font-semibold">Supprimer « {fieldPendingDelete.name} » ?</p>
+            <p className="mb-4 text-xs text-muted-foreground">
+              Ce champ contient une valeur qui sera définitivement perdue.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setFieldPendingDelete(null)}
+                className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => void performDelete(fieldPendingDelete.custom_field_id)}
+                className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground hover:bg-destructive/90"
+              >
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -573,6 +634,7 @@ export function CardEditor({
   boardId,
   onClose,
   onRename,
+  onDescriptionChange,
   onDueDateChange,
   onCoverChange,
   onLabelsChange,
@@ -581,6 +643,7 @@ export function CardEditor({
   boardId: number;
   onClose: () => void;
   onRename: (title: string) => void;
+  onDescriptionChange: (description: string) => void;
   onDueDateChange: (dueDate: string | null) => void;
   onCoverChange: (cover: { cover_color: string | null; cover_image: string | null }) => void;
   onLabelsChange: (labels: { id: number; name: string; color: string }[]) => void;
@@ -627,7 +690,9 @@ export function CardEditor({
   }, [slashOpen, onClose]);
 
   function saveDescription(value: string) {
+    if (value === card.description) return;
     void cardsApi.updateDescription(card.id, value);
+    onDescriptionChange(value);
   }
 
   function handleDueDateChange(value: string) {
