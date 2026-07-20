@@ -3,8 +3,9 @@ import { authApi } from "@/lib/auth";
 import { boardsApi, type Board } from "@/lib/boards";
 import { Button } from "@/components/ui/button";
 import { LoginForm } from "@/components/LoginForm";
+import { SettingsPage } from "@/components/SettingsPage";
 
-function BoardsPage() {
+function BoardsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
   const [boards, setBoards] = useState<Board[]>([]);
   const [newTitle, setNewTitle] = useState("");
 
@@ -34,9 +35,14 @@ function BoardsPage() {
     <main className="mx-auto max-w-2xl p-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">KanbanStyle</h1>
-        <Button variant="ghost" onClick={() => authApi.logout().then(() => location.reload())}>
-          Se déconnecter
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="ghost" onClick={onOpenSettings}>
+            Paramètres
+          </Button>
+          <Button variant="ghost" onClick={() => authApi.logout().then(() => location.reload())}>
+            Se déconnecter
+          </Button>
+        </div>
       </div>
 
       <div className="mb-6 flex gap-2">
@@ -76,6 +82,7 @@ function BoardsPage() {
 
 function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  const [view, setView] = useState<"boards" | "settings">("boards");
 
   useEffect(() => {
     authApi.me().then((res) => setAuthenticated(res.authenticated));
@@ -85,7 +92,10 @@ function App() {
   if (!authenticated) {
     return <LoginForm onSuccess={() => setAuthenticated(true)} />;
   }
-  return <BoardsPage />;
+  if (view === "settings") {
+    return <SettingsPage onBack={() => setView("boards")} />;
+  }
+  return <BoardsPage onOpenSettings={() => setView("settings")} />;
 }
 
 export default App;
