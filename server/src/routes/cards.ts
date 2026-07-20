@@ -32,7 +32,7 @@ function instantiateTemplate(cardId: number | bigint, columnId: string) {
 cardsRouter.get("/columns/:columnId/cards", (req, res) => {
   const cards = db
     .prepare(
-      `SELECT id, column_id, title, description, position, closed, closed_at,
+      `SELECT id, column_id, title, description, position, closed, closed_at, due_date,
               EXISTS(SELECT 1 FROM attachments WHERE attachments.card_id = cards.id) AS has_attachments
        FROM cards WHERE column_id = ? ORDER BY position, id`,
     )
@@ -65,17 +65,25 @@ cardsRouter.post("/columns/:columnId/cards", (req, res) => {
     position,
     closed: Boolean(closed),
     closed_at: closedAt,
+    due_date: null,
     has_attachments: false,
   });
 });
 
 cardsRouter.patch("/cards/:id", (req, res) => {
-  const { title, description } = req.body as { title?: string; description?: string };
+  const { title, description, due_date } = req.body as {
+    title?: string;
+    description?: string;
+    due_date?: string | null;
+  };
   if (title !== undefined) {
     db.prepare("UPDATE cards SET title = ? WHERE id = ?").run(title, req.params.id);
   }
   if (description !== undefined) {
     db.prepare("UPDATE cards SET description = ? WHERE id = ?").run(description, req.params.id);
+  }
+  if (due_date !== undefined) {
+    db.prepare("UPDATE cards SET due_date = ? WHERE id = ?").run(due_date || null, req.params.id);
   }
   res.status(204).end();
 });
