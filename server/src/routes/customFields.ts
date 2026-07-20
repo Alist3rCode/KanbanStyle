@@ -74,6 +74,19 @@ customFieldsRouter.delete("/custom-fields/:id", (req, res) => {
   res.status(204).end();
 });
 
+/** All field values for every card on a board, for client-side search/filter (US-07) — one query, no N+1. */
+customFieldsRouter.get("/boards/:boardId/field-values", (req, res) => {
+  const values = db
+    .prepare(
+      `SELECT fv.card_id, fv.value
+       FROM field_values fv
+       JOIN custom_fields cf ON cf.id = fv.custom_field_id
+       WHERE cf.board_id = ? AND fv.value != ''`,
+    )
+    .all(req.params.boardId);
+  res.json(values);
+});
+
 customFieldsRouter.get("/cards/:cardId/field-values", (req, res) => {
   const values = db
     .prepare(

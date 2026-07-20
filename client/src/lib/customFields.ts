@@ -27,4 +27,6 @@ export const customFieldsApi = {
   reorder: (id: number, position: number) =>
     api.patch<void>(`/custom-fields/${id}`, { position }),
   remove: (id: number) => api.delete<void>(`/custom-fields/${id}`),
+  fieldValuesForBoard: (boardId: number) =>
+    api.get<{ card_id: number; value: string }[]>(`/boards/${boardId}/field-values`),
 };

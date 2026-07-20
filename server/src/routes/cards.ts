@@ -32,7 +32,9 @@ function instantiateTemplate(cardId: number | bigint, columnId: string) {
 cardsRouter.get("/columns/:columnId/cards", (req, res) => {
   const cards = db
     .prepare(
-      "SELECT id, column_id, title, description, position, closed, closed_at FROM cards WHERE column_id = ? ORDER BY position, id",
+      `SELECT id, column_id, title, description, position, closed, closed_at,
+              EXISTS(SELECT 1 FROM attachments WHERE attachments.card_id = cards.id) AS has_attachments
+       FROM cards WHERE column_id = ? ORDER BY position, id`,
     )
     .all(req.params.columnId);
   res.json(cards);
@@ -63,6 +65,7 @@ cardsRouter.post("/columns/:columnId/cards", (req, res) => {
     position,
     closed: Boolean(closed),
     closed_at: closedAt,
+    has_attachments: false,
   });
 });
 

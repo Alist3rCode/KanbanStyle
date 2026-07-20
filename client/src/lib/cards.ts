@@ -8,6 +8,7 @@ export interface Card {
   position: number;
   closed: boolean;
   closed_at: string | null;
+  has_attachments: boolean;
 }
 
 export const cardsApi = {
