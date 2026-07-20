@@ -47,8 +47,16 @@ columnsRouter.patch("/columns/:id", (req, res) => {
     db.prepare("UPDATE columns SET position = ? WHERE id = ?").run(position, req.params.id);
   }
   if (is_closing_column !== undefined) {
+    const closed = is_closing_column ? 1 : 0;
+    const closedAt = closed ? new Date().toISOString() : null;
     db.prepare("UPDATE columns SET is_closing_column = ? WHERE id = ?").run(
-      is_closing_column ? 1 : 0,
+      closed,
+      req.params.id,
+    );
+    // Keep every card in this column consistent with the new rule (US-05).
+    db.prepare("UPDATE cards SET closed = ?, closed_at = ? WHERE column_id = ?").run(
+      closed,
+      closedAt,
       req.params.id,
     );
   }

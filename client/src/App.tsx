@@ -5,13 +5,16 @@ import { useTheme } from "@/lib/theme";
 import { Button } from "@/components/ui/button";
 import { LoginForm } from "@/components/LoginForm";
 import { SettingsPage } from "@/components/SettingsPage";
+import { BoardView } from "@/components/BoardView";
 import { BoardTemplatePage } from "@/components/BoardTemplatePage";
 
 function BoardsPage({
   onOpenSettings,
+  onOpenBoard,
   onOpenTemplate,
 }: {
   onOpenSettings: () => void;
+  onOpenBoard: (board: Board) => void;
   onOpenTemplate: (board: Board) => void;
 }) {
   const [boards, setBoards] = useState<Board[]>([]);
@@ -75,6 +78,9 @@ function BoardsPage({
               defaultValue={board.title}
               onBlur={(e) => handleRename(board.id, e.currentTarget.value)}
             />
+            <Button variant="outline" onClick={() => onOpenBoard(board)}>
+              Ouvrir
+            </Button>
             <Button variant="ghost" onClick={() => onOpenTemplate(board)}>
               Modèle
             </Button>
@@ -93,7 +99,8 @@ function BoardsPage({
 
 function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
-  const [view, setView] = useState<"boards" | "settings" | "template">("boards");
+  const [view, setView] = useState<"boards" | "settings" | "board" | "template">("boards");
+  const [openBoard, setOpenBoard] = useState<Board | null>(null);
   const [templateBoard, setTemplateBoard] = useState<Board | null>(null);
   const { theme, setTheme } = useTheme();
 
@@ -108,6 +115,15 @@ function App() {
   if (view === "settings") {
     return <SettingsPage theme={theme} setTheme={setTheme} onBack={() => setView("boards")} />;
   }
+  if (view === "board" && openBoard) {
+    return (
+      <BoardView
+        boardId={openBoard.id}
+        boardTitle={openBoard.title}
+        onBack={() => setView("boards")}
+      />
+    );
+  }
   if (view === "template" && templateBoard) {
     return (
       <BoardTemplatePage
@@ -120,6 +136,10 @@ function App() {
   return (
     <BoardsPage
       onOpenSettings={() => setView("settings")}
+      onOpenBoard={(board) => {
+        setOpenBoard(board);
+        setView("board");
+      }}
       onOpenTemplate={(board) => {
         setTemplateBoard(board);
         setView("template");
