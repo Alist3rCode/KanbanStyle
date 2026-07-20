@@ -614,8 +614,8 @@ export function BoardView({
             </button>
             {labelFilterOpen && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setLabelFilterOpen(false)} />
-                <div className="absolute left-0 top-9 z-20 w-56 rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-lg">
+                <div className="fixed inset-0 z-30" onClick={() => setLabelFilterOpen(false)} />
+                <div className="absolute left-0 top-9 z-40 w-56 rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-lg">
                   {boardLabels.map((label) => (
                     <button
                       key={label.id}
