@@ -55,7 +55,7 @@ function StatusBadgeButton({
   currentColumnId,
   onMove,
 }: {
-  columns: { id: number; title: string }[];
+  columns: { id: number; title: string; color: string | null }[];
   currentColumnId: number;
   onMove: (columnId: number) => void;
 }) {
@@ -63,13 +63,16 @@ function StatusBadgeButton({
   const containerRef = useRef<HTMLDivElement>(null);
   useClickOutside(containerRef, () => setOpen(false), open);
   const current = columns.find((c) => c.id === currentColumnId);
+  const colorClass = current?.color
+    ? `${LABEL_COLOR_CLASSES[current.color as keyof typeof LABEL_COLOR_CLASSES]} text-white`
+    : "bg-muted";
 
   return (
     <div className="relative" ref={containerRef}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 rounded-md bg-muted px-2.5 py-1 text-sm font-medium hover:bg-accent"
+        className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-sm font-medium transition hover:opacity-90 ${colorClass}`}
       >
         {current?.title ?? "…"}
         <ChevronDown className="size-3.5" />
@@ -86,8 +89,15 @@ function StatusBadgeButton({
               }}
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
             >
-              <span className="w-4 shrink-0">{column.id === currentColumnId && <Check className="size-4" />}</span>
+              <span
+                className={`size-3 shrink-0 rounded-full ${
+                  column.color
+                    ? LABEL_COLOR_CLASSES[column.color as keyof typeof LABEL_COLOR_CLASSES]
+                    : "border border-dashed border-muted-foreground/40"
+                }`}
+              />
               <span className="flex-1 truncate">{column.title}</span>
+              {column.id === currentColumnId && <Check className="size-4 shrink-0" />}
             </button>
           ))}
         </div>
@@ -826,7 +836,7 @@ export function CardEditor({
 }: {
   card: Card;
   boardId: number;
-  columns: { id: number; title: string }[];
+  columns: { id: number; title: string; color: string | null }[];
   onClose: () => void;
   onRename: (title: string) => void;
   onDescriptionChange: (description: string) => void;

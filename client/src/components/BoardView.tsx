@@ -30,7 +30,7 @@ import {
 import { columnsApi, type Column } from "@/lib/columns";
 import { cardsApi, dueStatus, type Card } from "@/lib/cards";
 import { customFieldsApi, type FieldType } from "@/lib/customFields";
-import { labelsApi, LABEL_COLOR_CLASSES, type Label } from "@/lib/labels";
+import { labelsApi, LABEL_COLORS, LABEL_COLOR_CLASSES, type Label } from "@/lib/labels";
 import { coverClasses } from "@/lib/covers";
 import { authApi } from "@/lib/auth";
 import { checklistProgress } from "@/lib/checklist";
@@ -218,12 +218,18 @@ function LabelFilterButton({
 
 function ColumnMenu({
   isClosing,
+  color,
   onToggleClosing,
+  onColorChange,
   onDelete,
+  iconClassName,
 }: {
   isClosing: boolean;
+  color: string | null;
   onToggleClosing: (value: boolean) => void;
+  onColorChange: (color: string | null) => void;
   onDelete: () => void;
+  iconClassName: string;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -235,7 +241,7 @@ function ColumnMenu({
         aria-label="Options de la liste"
         onClick={() => setOpen((v) => !v)}
         onPointerDown={(e) => e.stopPropagation()}
-        className="rounded p-1 text-list-foreground/70 transition hover:bg-black/10 dark:hover:bg-white/10"
+        className={`rounded p-1 transition hover:bg-black/10 dark:hover:bg-white/10 ${iconClassName}`}
       >
         <MoreHorizontal className="size-4" />
       </button>
@@ -249,13 +255,37 @@ function ColumnMenu({
             />
             Colonne de fermeture
           </label>
+          <div className="border-t border-border px-3 py-2">
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Couleur</p>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                aria-label="Aucune couleur"
+                onClick={() => onColorChange(null)}
+                className={`size-6 rounded-full border border-dashed border-muted-foreground/40 ${
+                  color === null ? "ring-2 ring-offset-2 ring-ring" : ""
+                }`}
+              />
+              {LABEL_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  aria-label={c}
+                  onClick={() => onColorChange(c)}
+                  className={`size-6 rounded-full ${LABEL_COLOR_CLASSES[c]} ${
+                    color === c ? "ring-2 ring-offset-2 ring-ring" : ""
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
           <button
             type="button"
             onClick={() => {
               setOpen(false);
               onDelete();
             }}
-            className="block w-full px-3 py-2 text-left text-sm text-destructive hover:bg-accent"
+            className="block w-full border-t border-border px-3 py-2 text-left text-sm text-destructive hover:bg-accent"
           >
             Supprimer la liste
           </button>
@@ -272,6 +302,7 @@ function ColumnContainer({
   cardLabelsByCard,
   onRename,
   onToggleClosingRule,
+  onColorChange,
   onDelete,
   onAddCard,
   onOpenCard,
@@ -282,6 +313,7 @@ function ColumnContainer({
   cardLabelsByCard: Map<number, { id: number; name: string; color: string }[]>;
   onRename: (title: string) => void;
   onToggleClosingRule: (value: boolean) => void;
+  onColorChange: (color: string | null) => void;
   onDelete: () => void;
   onAddCard: (title: string) => void;
   onOpenCard: (card: Card) => void;
@@ -304,6 +336,8 @@ function ColumnContainer({
     setNewCardTitle("");
   }
 
+  const headerTextClass = column.color ? "text-white" : "text-list-foreground";
+
   return (
     <div
       ref={setNodeRef}
@@ -312,15 +346,17 @@ function ColumnContainer({
         transition,
         opacity: isDragging ? 0.5 : 1,
       }}
-      className="flex max-h-full w-72 shrink-0 snap-start flex-col rounded-xl bg-list text-list-foreground shadow-sm"
+      className="flex max-h-full w-72 shrink-0 snap-start flex-col overflow-hidden rounded-xl bg-list text-list-foreground shadow-sm"
     >
       <div
         {...attributes}
         {...listeners}
-        className="flex cursor-grab items-center gap-1 px-2 py-2 active:cursor-grabbing"
+        className={`flex cursor-grab items-center gap-1 px-2 py-2 active:cursor-grabbing ${
+          column.color ? LABEL_COLOR_CLASSES[column.color as keyof typeof LABEL_COLOR_CLASSES] : ""
+        }`}
       >
         <input
-          className="min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-sm font-semibold outline-none focus-visible:bg-background"
+          className={`min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-sm font-semibold outline-none focus-visible:bg-background focus-visible:text-foreground ${headerTextClass}`}
           defaultValue={column.title}
           onBlur={(e) => onRename(e.currentTarget.value)}
           onPointerDown={(e) => e.stopPropagation()}
@@ -330,11 +366,14 @@ function ColumnContainer({
             Fermeture
           </span>
         )}
-        <span className="shrink-0 text-xs text-list-foreground/60">{visibleCards.length}</span>
+        <span className={`shrink-0 text-xs ${headerTextClass}/60`}>{visibleCards.length}</span>
         <ColumnMenu
           isClosing={column.is_closing_column}
+          color={column.color}
           onToggleClosing={onToggleClosingRule}
+          onColorChange={onColorChange}
           onDelete={onDelete}
+          iconClassName={`${headerTextClass}/70`}
         />
       </div>
 
@@ -542,6 +581,11 @@ export function BoardView({
       ),
     );
     await columnsApi.setClosingRule(id, value);
+  }
+
+  async function handleColumnColorChange(id: number, color: string | null) {
+    setColumns((prev) => prev.map((c) => (c.id === id ? { ...c, color } : c)));
+    await columnsApi.setColor(id, color);
   }
 
   async function handleDeleteColumn(id: number) {
@@ -782,6 +826,7 @@ export function BoardView({
                 cardLabelsByCard={cardLabelsByCard}
                 onRename={(title) => handleRenameColumn(column.id, title)}
                 onToggleClosingRule={(value) => handleToggleClosingRule(column.id, value)}
+                onColorChange={(color) => handleColumnColorChange(column.id, color)}
                 onDelete={() => handleDeleteColumn(column.id)}
                 onAddCard={(title) => handleAddCard(column.id, title)}
                 onOpenCard={setEditingCard}
@@ -847,7 +892,7 @@ export function BoardView({
         <CardEditor
           card={editingCard}
           boardId={boardId}
-          columns={columns.map((c) => ({ id: c.id, title: c.title }))}
+          columns={columns.map((c) => ({ id: c.id, title: c.title, color: c.color }))}
           onClose={() => setEditingCard(null)}
           onRename={(title) => handleRenameCard(editingCard.id, title)}
           onDescriptionChange={(description) =>
