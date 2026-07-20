@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ArrowLeft, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import {
   customFieldsApi,
   FIELD_TYPE_LABELS,
@@ -6,17 +7,18 @@ import {
   type FieldType,
 } from "@/lib/customFields";
 import { Button } from "@/components/ui/button";
+import { TopBar, topBarButtonClass } from "@/components/TopBar";
 
 const FIELD_TYPES = Object.keys(FIELD_TYPE_LABELS) as FieldType[];
 
 export function BoardTemplatePage({
   boardId,
   boardTitle,
-  onBack,
+  onHome,
 }: {
   boardId: number;
   boardTitle: string;
-  onBack: () => void;
+  onHome: () => void;
 }) {
   const [fields, setFields] = useState<CustomField[]>([]);
   const [name, setName] = useState("");
@@ -57,82 +59,110 @@ export function BoardTemplatePage({
     );
   }
 
+  const inputClass =
+    "rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+
   return (
-    <main className="mx-auto max-w-2xl p-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Modèle — {boardTitle}</h1>
-        <Button variant="ghost" onClick={onBack}>
-          Retour
-        </Button>
-      </div>
+    <div className="flex min-h-full flex-col">
+      <TopBar onHome={onHome}>
+        <button type="button" className={topBarButtonClass} onClick={onHome}>
+          <ArrowLeft className="size-4" />
+          <span className="hidden sm:inline">Retour</span>
+        </button>
+      </TopBar>
 
-      <ul className="mb-6 space-y-2">
-        {fields.map((field, index) => (
-          <li
-            key={field.id}
-            className="flex items-center gap-2 rounded-md border border-border p-3"
-          >
-            <div className="flex flex-1 items-center gap-2">
-              <span className="text-sm font-medium">{field.name}</span>
-              <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                {FIELD_TYPE_LABELS[field.field_type]}
-              </span>
-              {field.link_prefix && (
-                <span className="text-xs text-muted-foreground">{field.link_prefix}{"{{suffix}}"}</span>
-              )}
-            </div>
-            <Button variant="ghost" size="icon" onClick={() => handleMove(index, -1)} disabled={index === 0}>
-              ↑
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => handleMove(index, 1)}
-              disabled={index === fields.length - 1}
+      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
+        <h1 className="text-lg font-semibold">Modèle de tâche</h1>
+        <p className="mb-5 text-sm text-muted-foreground">{boardTitle}</p>
+
+        <ul className="mb-4 space-y-2">
+          {fields.map((field, index) => (
+            <li
+              key={field.id}
+              className="flex items-center gap-2 rounded-lg border border-border bg-card p-3 shadow-sm"
             >
-              ↓
-            </Button>
-            <Button variant="ghost" onClick={() => handleDelete(field.id)}>
-              Supprimer
-            </Button>
-          </li>
-        ))}
-        {fields.length === 0 && (
-          <p className="text-sm text-muted-foreground">Aucun champ dans ce modèle pour l'instant.</p>
-        )}
-      </ul>
+              <div className="flex flex-1 flex-wrap items-center gap-2">
+                <span className="text-sm font-medium">{field.name}</span>
+                <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                  {FIELD_TYPE_LABELS[field.field_type]}
+                </span>
+                {field.link_prefix && (
+                  <span className="truncate text-xs text-muted-foreground">
+                    {field.link_prefix}
+                    {"{{suffixe}}"}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                aria-label="Monter"
+                onClick={() => handleMove(index, -1)}
+                disabled={index === 0}
+                className="rounded p-1 text-muted-foreground transition hover:bg-accent disabled:opacity-30"
+              >
+                <ChevronUp className="size-4" />
+              </button>
+              <button
+                type="button"
+                aria-label="Descendre"
+                onClick={() => handleMove(index, 1)}
+                disabled={index === fields.length - 1}
+                className="rounded p-1 text-muted-foreground transition hover:bg-accent disabled:opacity-30"
+              >
+                <ChevronDown className="size-4" />
+              </button>
+              <button
+                type="button"
+                aria-label="Supprimer le champ"
+                onClick={() => handleDelete(field.id)}
+                className="rounded p-1 text-muted-foreground transition hover:bg-accent hover:text-destructive"
+              >
+                <Trash2 className="size-4" />
+              </button>
+            </li>
+          ))}
+          {fields.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Aucun champ dans ce modèle pour l'instant.
+            </p>
+          )}
+        </ul>
 
-      <div className="flex flex-col gap-2 rounded-md border border-border p-3">
-        <p className="text-sm font-medium text-muted-foreground">Ajouter un champ</p>
-        <div className="flex gap-2">
-          <input
-            className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
-            placeholder="Nom du champ"
-            value={name}
-            onChange={(e) => setName(e.currentTarget.value)}
-          />
-          <select
-            className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-            value={fieldType}
-            onChange={(e) => setFieldType(e.currentTarget.value as FieldType)}
-          >
-            {FIELD_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {FIELD_TYPE_LABELS[type]}
-              </option>
-            ))}
-          </select>
+        <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4 shadow-sm">
+          <p className="text-sm font-semibold">Ajouter un champ</p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              className={`flex-1 ${inputClass}`}
+              placeholder="Nom du champ"
+              value={name}
+              onChange={(e) => setName(e.currentTarget.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+            />
+            <select
+              className={inputClass}
+              value={fieldType}
+              onChange={(e) => setFieldType(e.currentTarget.value as FieldType)}
+            >
+              {FIELD_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {FIELD_TYPE_LABELS[type]}
+                </option>
+              ))}
+            </select>
+          </div>
+          {fieldType === "link" && (
+            <input
+              className={inputClass}
+              placeholder="Préfixe d'URL, ex: https://entreprise.atlassian.net/browse/"
+              value={linkPrefix}
+              onChange={(e) => setLinkPrefix(e.currentTarget.value)}
+            />
+          )}
+          <div>
+            <Button onClick={handleAdd}>Ajouter</Button>
+          </div>
         </div>
-        {fieldType === "link" && (
-          <input
-            className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-            placeholder="Préfixe d'URL, ex: https://entreprise.atlassian.net/browse/"
-            value={linkPrefix}
-            onChange={(e) => setLinkPrefix(e.currentTarget.value)}
-          />
-        )}
-        <Button onClick={handleAdd}>Ajouter</Button>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
