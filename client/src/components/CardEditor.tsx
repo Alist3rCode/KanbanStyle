@@ -5,6 +5,7 @@ import {
   Clock,
   Code,
   CreditCard,
+  Image,
   LayoutList,
   Link2,
   Paperclip,
@@ -58,14 +59,15 @@ function CoverMenuButton({
     <div className="relative" ref={containerRef}>
       <button
         type="button"
+        aria-label="Couverture"
+        title="Couverture"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent"
+        className="rounded-md p-1.5 text-muted-foreground transition hover:bg-accent"
       >
-        <CreditCard className="size-3.5" />
-        Couverture
+        <Image className="size-5" />
       </button>
       {open && (
-        <div className="absolute left-0 top-9 z-20 w-64 rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-lg">
+        <div className="absolute right-0 top-9 z-20 w-64 rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-lg">
           <p className="mb-1.5 text-xs font-medium text-muted-foreground">Couleurs</p>
           <div className="mb-3 flex flex-wrap gap-1.5">
             {LABEL_COLORS.map((color) => (
@@ -730,6 +732,13 @@ export function CardEditor({
               }
             }}
           />
+          <CoverMenuButton
+            coverColor={coverColor}
+            hasCover={Boolean(coverColor || coverImage)}
+            onPickColor={handleCoverColorChange}
+            onUploadImage={handleCoverImageUpload}
+            onRemove={handleRemoveCover}
+          />
           <button
             type="button"
             aria-label="Fermer"
@@ -752,16 +761,6 @@ export function CardEditor({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
-          <div className="mb-4">
-            <CoverMenuButton
-              coverColor={coverColor}
-              hasCover={Boolean(coverColor || coverImage)}
-              onPickColor={handleCoverColorChange}
-              onUploadImage={handleCoverImageUpload}
-              onRemove={handleRemoveCover}
-            />
-          </div>
-
           <LabelsSection cardId={card.id} boardId={boardId} onLabelsChange={onLabelsChange} />
 
           <section className="mb-6">
