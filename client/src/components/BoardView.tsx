@@ -22,11 +22,13 @@ import {
   Plus,
   Search,
   Settings,
+  Tag,
   X,
 } from "lucide-react";
 import { columnsApi, type Column } from "@/lib/columns";
 import { cardsApi, type Card } from "@/lib/cards";
 import { customFieldsApi } from "@/lib/customFields";
+import { labelsApi, LABEL_COLOR_CLASSES, type Label } from "@/lib/labels";
 import { authApi } from "@/lib/auth";
 import { CardEditor } from "@/components/CardEditor";
 import { TopBar, topBarButtonClass } from "@/components/TopBar";
@@ -37,10 +39,12 @@ interface ColumnWithCards extends Column {
 
 function CardItem({
   card,
+  labels,
   visibleFields,
   onOpen,
 }: {
   card: Card;
+  labels: { id: number; name: string; color: string }[];
   visibleFields: { name: string; value: string }[];
   onOpen: () => void;
 }) {
@@ -62,6 +66,17 @@ function CardItem({
       }}
       className="group cursor-pointer rounded-lg border border-border/60 bg-card px-3 py-2 text-sm text-card-foreground shadow-sm transition hover:border-primary/40 hover:shadow-md"
     >
+      {labels.length > 0 && (
+        <div className="mb-1.5 flex flex-wrap gap-1">
+          {labels.map((label) => (
+            <span
+              key={label.id}
+              className={`h-[3px] w-8 rounded-sm ${LABEL_COLOR_CLASSES[label.color as keyof typeof LABEL_COLOR_CLASSES]}`}
+              title={label.name}
+            />
+          ))}
+        </div>
+      )}
       <p className="whitespace-pre-wrap break-words">{card.title}</p>
       {visibleFields.length > 0 && (
         <div className="mt-1.5 flex flex-col gap-0.5">
@@ -145,6 +160,7 @@ function ColumnContainer({
   column,
   visibleCards,
   visibleFieldsByCard,
+  cardLabelsByCard,
   onRename,
   onToggleClosingRule,
   onDelete,
@@ -154,6 +170,7 @@ function ColumnContainer({
   column: ColumnWithCards;
   visibleCards: Card[];
   visibleFieldsByCard: Map<number, { name: string; value: string }[]>;
+  cardLabelsByCard: Map<number, { id: number; name: string; color: string }[]>;
   onRename: (title: string) => void;
   onToggleClosingRule: (value: boolean) => void;
   onDelete: () => void;
@@ -220,6 +237,7 @@ function ColumnContainer({
             <CardItem
               key={card.id}
               card={card}
+              labels={cardLabelsByCard.get(card.id) ?? []}
               visibleFields={visibleFieldsByCard.get(card.id) ?? []}
               onOpen={() => onOpenCard(card)}
             />
@@ -313,6 +331,12 @@ export function BoardView({
   const [visibleFieldsByCard, setVisibleFieldsByCard] = useState<
     Map<number, { name: string; value: string }[]>
   >(new Map());
+  const [boardLabels, setBoardLabels] = useState<Label[]>([]);
+  const [cardLabelsByCard, setCardLabelsByCard] = useState<
+    Map<number, { id: number; name: string; color: string }[]>
+  >(new Map());
+  const [labelFilter, setLabelFilter] = useState<Set<number>>(new Set());
+  const [labelFilterOpen, setLabelFilterOpen] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   useEffect(() => {
@@ -337,17 +361,39 @@ export function BoardView({
       }
       setFieldValuesByCard(searchByCard);
       setVisibleFieldsByCard(visibleByCard);
+
+      const labels = await labelsApi.list(boardId);
+      setBoardLabels(labels);
+      const cardLabels = await labelsApi.forBoard(boardId);
+      const byCard = new Map<number, { id: number; name: string; color: string }[]>();
+      for (const { card_id, label_id, name, color } of cardLabels) {
+        byCard.set(card_id, [...(byCard.get(card_id) ?? []), { id: label_id, name, color }]);
+      }
+      setCardLabelsByCard(byCard);
     })();
   }, [boardId]);
 
   function isCardVisible(card: Card): boolean {
     if (hideClosed && card.closed) return false;
     if (onlyWithAttachments && !card.has_attachments) return false;
+    if (labelFilter.size > 0) {
+      const labels = cardLabelsByCard.get(card.id) ?? [];
+      if (!labels.some((l) => labelFilter.has(l.id))) return false;
+    }
     const query = search.trim().toLowerCase();
     if (!query) return true;
     if (card.title.toLowerCase().includes(query)) return true;
     if (card.description.toLowerCase().includes(query)) return true;
     return (fieldValuesByCard.get(card.id) ?? []).some((v) => v.toLowerCase().includes(query));
+  }
+
+  function toggleLabelFilter(labelId: number) {
+    setLabelFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(labelId)) next.delete(labelId);
+      else next.add(labelId);
+      return next;
+    });
   }
 
   async function handleAddColumn() {
@@ -521,6 +567,51 @@ export function BoardView({
           />
           Avec pièces jointes
         </label>
+
+        {boardLabels.length > 0 && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setLabelFilterOpen((v) => !v)}
+              className="flex items-center gap-1.5 rounded-md border border-white/20 bg-white/15 px-2 py-1 text-sm text-board-foreground transition hover:bg-white/25"
+            >
+              <Tag className="size-4" />
+              Étiquettes
+              {labelFilter.size > 0 && (
+                <span className="rounded-full bg-white/25 px-1.5 text-xs">{labelFilter.size}</span>
+              )}
+            </button>
+            {labelFilterOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setLabelFilterOpen(false)} />
+                <div className="absolute left-0 top-9 z-20 w-56 rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-lg">
+                  {boardLabels.map((label) => (
+                    <button
+                      key={label.id}
+                      type="button"
+                      onClick={() => toggleLabelFilter(label.id)}
+                      className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent ${
+                        labelFilter.has(label.id) ? "ring-1 ring-inset ring-ring" : ""
+                      }`}
+                    >
+                      <span className={`h-3 w-6 shrink-0 rounded-full ${LABEL_COLOR_CLASSES[label.color]}`} />
+                      <span className="flex-1 truncate">{label.name || "Sans nom"}</span>
+                    </button>
+                  ))}
+                  {labelFilter.size > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setLabelFilter(new Set())}
+                      className="mt-1 block w-full rounded px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-accent"
+                    >
+                      Effacer le filtre
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -535,6 +626,7 @@ export function BoardView({
                 column={column}
                 visibleCards={column.cards.filter(isCardVisible)}
                 visibleFieldsByCard={visibleFieldsByCard}
+                cardLabelsByCard={cardLabelsByCard}
                 onRename={(title) => handleRenameColumn(column.id, title)}
                 onToggleClosingRule={(value) => handleToggleClosingRule(column.id, value)}
                 onDelete={() => handleDeleteColumn(column.id)}
@@ -601,8 +693,12 @@ export function BoardView({
       {editingCard && (
         <CardEditor
           card={editingCard}
+          boardId={boardId}
           onClose={() => setEditingCard(null)}
           onRename={(title) => handleRenameCard(editingCard.id, title)}
+          onLabelsChange={(labels) =>
+            setCardLabelsByCard((prev) => new Map(prev).set(editingCard.id, labels))
+          }
         />
       )}
     </div>

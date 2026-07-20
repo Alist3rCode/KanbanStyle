@@ -12,6 +12,7 @@ import { settingsRouter } from "./routes/settings.js";
 import { jiraRouter } from "./routes/jira.js";
 import { attachmentsRouter } from "./routes/attachments.js";
 import { customFieldsRouter } from "./routes/customFields.js";
+import { labelsRouter } from "./routes/labels.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -67,6 +68,7 @@ app.use(
   jiraRouter,
   attachmentsRouter,
   customFieldsRouter,
+  labelsRouter,
 );
 
 const clientDist = process.env.CLIENT_DIST_DIR ?? path.join(__dirname, "../../client/dist");
