@@ -1,0 +1,13 @@
+CREATE TABLE labels (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+    name TEXT NOT NULL DEFAULT '',
+    color TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE card_labels (
+    card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+    label_id INTEGER NOT NULL REFERENCES labels(id) ON DELETE CASCADE,
+    PRIMARY KEY (card_id, label_id)
+);

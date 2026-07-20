@@ -17,7 +17,7 @@ function instantiateTemplate(cardId: number | bigint, columnId: string) {
   const fields = db
     .prepare(
       `SELECT id, default_value FROM custom_fields
-       WHERE board_id = (SELECT board_id FROM columns WHERE id = ?)`,
+       WHERE board_id = (SELECT board_id FROM columns WHERE id = ?) AND card_id IS NULL`,
     )
     .all(columnId) as { id: number; default_value: string }[];
   const insert = db.prepare(
