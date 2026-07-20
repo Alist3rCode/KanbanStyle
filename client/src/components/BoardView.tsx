@@ -562,7 +562,11 @@ export function BoardView({
       </TopBar>
 
       {/* Board header strip over the coloured board background */}
-      <div className="flex flex-wrap items-center gap-3 bg-black/10 px-4 py-2.5 backdrop-blur-sm">
+      {/* relative + z-20: its own stacking context, so its popovers always
+          win over column popovers — columns get their own stacking context
+          from dnd-kit's `transform` style, which a plain z-index inside them
+          can't escape when compared against a sibling further up the tree. */}
+      <div className="relative z-20 flex flex-wrap items-center gap-3 bg-black/10 px-4 py-2.5 backdrop-blur-sm">
         <h1 className="truncate text-lg font-bold">{boardTitle}</h1>
         <button
           type="button"
