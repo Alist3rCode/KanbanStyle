@@ -599,6 +599,45 @@ export function BoardView({
     );
   }
 
+  function handleMoveCardTo(cardId: number, destColumnId: number) {
+    const destColumn = columns.find((c) => c.id === destColumnId);
+    if (!destColumn) return;
+    const destIndex = destColumn.cards.length;
+    setColumns((prev) => {
+      const next = prev.map((c) => ({ ...c, cards: [...c.cards] }));
+      const src = next.find((c) => c.cards.some((card) => card.id === cardId));
+      if (!src || src.id === destColumnId) return prev;
+      const cardIndex = src.cards.findIndex((c) => c.id === cardId);
+      const [movedCard] = src.cards.splice(cardIndex, 1);
+      const dest = next.find((c) => c.id === destColumnId)!;
+      movedCard.column_id = dest.id;
+      movedCard.closed = dest.is_closing_column;
+      movedCard.closed_at = dest.is_closing_column ? new Date().toISOString() : null;
+      dest.cards.splice(destIndex, 0, movedCard);
+      dest.cards.forEach((c, i) => (c.position = i));
+      src.cards.forEach((c, i) => (c.position = i));
+      return next;
+    });
+    setEditingCard((prev) =>
+      prev && prev.id === cardId
+        ? {
+            ...prev,
+            column_id: destColumnId,
+            closed: destColumn.is_closing_column,
+            closed_at: destColumn.is_closing_column ? new Date().toISOString() : null,
+          }
+        : prev,
+    );
+    void cardsApi.move(cardId, destColumnId, destIndex);
+  }
+
+  function handleDeleteCard(cardId: number) {
+    setColumns((prev) =>
+      prev.map((c) => ({ ...c, cards: c.cards.filter((card) => card.id !== cardId) })),
+    );
+    void cardsApi.remove(cardId);
+  }
+
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over) return;
@@ -808,6 +847,7 @@ export function BoardView({
         <CardEditor
           card={editingCard}
           boardId={boardId}
+          columns={columns.map((c) => ({ id: c.id, title: c.title }))}
           onClose={() => setEditingCard(null)}
           onRename={(title) => handleRenameCard(editingCard.id, title)}
           onDescriptionChange={(description) =>
@@ -818,6 +858,11 @@ export function BoardView({
           onLabelsChange={(labels) =>
             setCardLabelsByCard((prev) => new Map(prev).set(editingCard.id, labels))
           }
+          onMove={(destColumnId) => handleMoveCardTo(editingCard.id, destColumnId)}
+          onDelete={() => {
+            handleDeleteCard(editingCard.id);
+            setEditingCard(null);
+          }}
         />
       )}
     </div>
