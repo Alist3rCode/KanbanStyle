@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useClickOutside } from "@/hooks/useClickOutside";
 import {
   DndContext,
   PointerSensor,
@@ -30,6 +31,7 @@ import { columnsApi, type Column } from "@/lib/columns";
 import { cardsApi, dueStatus, type Card } from "@/lib/cards";
 import { customFieldsApi, type FieldType } from "@/lib/customFields";
 import { labelsApi, LABEL_COLOR_CLASSES, type Label } from "@/lib/labels";
+import { coverClasses } from "@/lib/covers";
 import { authApi } from "@/lib/auth";
 import { checklistProgress } from "@/lib/checklist";
 import { CardEditor } from "@/components/CardEditor";
@@ -75,11 +77,7 @@ function CardItem({
           className="h-24 w-full object-cover"
         />
       ) : (
-        card.cover_color && (
-          <div
-            className={`h-8 w-full ${LABEL_COLOR_CLASSES[card.cover_color as keyof typeof LABEL_COLOR_CLASSES]}`}
-          />
-        )
+        card.cover_color && <div className={`h-8 w-full ${coverClasses(card.cover_color)}`} />
       )}
       <div className="px-3 py-2">
       {labels.length > 0 && (
@@ -153,25 +151,6 @@ function CardItem({
       </div>
     </div>
   );
-}
-
-/**
- * Closes a popover on any click outside `ref`'s element, via a document-level
- * listener rather than a full-screen backdrop div — a backdrop's z-index is
- * only ever compared within its own ancestor's stacking context, so nesting
- * it inside a column (which dnd-kit gives its own stacking context via
- * `transform`) or inside the header strip can leave clicks elsewhere on the
- * page unable to reach it, even though it visually covers the viewport.
- */
-function useClickOutside(ref: RefObject<HTMLElement | null>, onOutside: () => void, enabled: boolean) {
-  useEffect(() => {
-    if (!enabled) return;
-    function handlePointerDown(e: PointerEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onOutside();
-    }
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [ref, onOutside, enabled]);
 }
 
 function LabelFilterButton({

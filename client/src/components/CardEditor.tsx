@@ -31,10 +31,12 @@ import {
   type CardLabelOption,
   type LabelColor,
 } from "@/lib/labels";
+import { GRADIENT_COVERS, coverClasses } from "@/lib/covers";
 import { ShowOnCardToggle } from "@/components/ShowOnCardToggle";
 import { parseChecklist, serializeChecklist, type ChecklistItem } from "@/lib/checklist";
+import { useClickOutside } from "@/hooks/useClickOutside";
 
-function CoverSection({
+function CoverMenuButton({
   coverColor,
   hasCover,
   onPickColor,
@@ -43,57 +45,88 @@ function CoverSection({
 }: {
   coverColor: string | null;
   hasCover: boolean;
-  onPickColor: (color: LabelColor | null) => void;
+  onPickColor: (color: string) => void;
   onUploadImage: (file: File) => void;
   onRemove: () => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  useClickOutside(containerRef, () => setOpen(false), open);
 
   return (
-    <section className="mb-6">
-      <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-        <CreditCard className="size-4 text-muted-foreground" />
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent"
+      >
+        <CreditCard className="size-3.5" />
         Couverture
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {LABEL_COLORS.map((color) => (
-          <button
-            key={color}
-            type="button"
-            aria-label={color}
-            onClick={() => onPickColor(color)}
-            className={`h-7 w-12 rounded ${LABEL_COLOR_CLASSES[color]} ${
-              coverColor === color ? "ring-2 ring-offset-2 ring-ring" : ""
-            }`}
-          />
-        ))}
-      </div>
-      <div className="mt-2 flex gap-3 text-xs">
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="text-primary hover:underline"
-        >
-          Importer une image
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.currentTarget.files?.[0];
-            if (file) onUploadImage(file);
-            e.currentTarget.value = "";
-          }}
-        />
-        {hasCover && (
-          <button type="button" onClick={onRemove} className="text-muted-foreground hover:underline">
-            Retirer la couverture
-          </button>
-        )}
-      </div>
-    </section>
+      </button>
+      {open && (
+        <div className="absolute left-0 top-9 z-20 w-64 rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-lg">
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">Couleurs</p>
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {LABEL_COLORS.map((color) => (
+              <button
+                key={color}
+                type="button"
+                aria-label={color}
+                onClick={() => onPickColor(color)}
+                className={`h-7 w-9 rounded ${LABEL_COLOR_CLASSES[color]} ${
+                  coverColor === color ? "ring-2 ring-offset-2 ring-ring" : ""
+                }`}
+              />
+            ))}
+          </div>
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">Dégradés</p>
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {GRADIENT_COVERS.map((gradient) => (
+              <button
+                key={gradient.id}
+                type="button"
+                aria-label={gradient.label}
+                title={gradient.label}
+                onClick={() => onPickColor(gradient.id)}
+                className={`h-7 w-9 rounded ${gradient.classes} ${
+                  coverColor === gradient.id ? "ring-2 ring-offset-2 ring-ring" : ""
+                }`}
+              />
+            ))}
+          </div>
+          <div className="flex flex-col gap-1.5 border-t border-border pt-2.5 text-xs">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="text-left text-primary hover:underline"
+            >
+              Importer une image
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.currentTarget.files?.[0];
+                if (file) onUploadImage(file);
+                e.currentTarget.value = "";
+              }}
+            />
+            {hasCover && (
+              <button
+                type="button"
+                onClick={onRemove}
+                className="text-left text-muted-foreground hover:underline"
+              >
+                Retirer la couverture
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -582,7 +615,7 @@ export function CardEditor({
     onDueDateChange(value || null);
   }
 
-  function handleCoverColorChange(color: LabelColor | null) {
+  function handleCoverColorChange(color: string) {
     setCoverColor(color);
     setCoverImage(null);
     void cardsApi.setCoverColor(card.id, color);
@@ -714,22 +747,20 @@ export function CardEditor({
             className="h-36 w-full shrink-0 object-cover"
           />
         ) : (
-          coverColor && (
-            <div
-              className={`h-16 w-full shrink-0 ${LABEL_COLOR_CLASSES[coverColor as keyof typeof LABEL_COLOR_CLASSES]}`}
-            />
-          )
+          coverColor && <div className={`h-16 w-full shrink-0 ${coverClasses(coverColor)}`} />
         )}
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
-          <CoverSection
-            coverColor={coverColor}
-            hasCover={Boolean(coverColor || coverImage)}
-            onPickColor={handleCoverColorChange}
-            onUploadImage={handleCoverImageUpload}
-            onRemove={handleRemoveCover}
-          />
+          <div className="mb-4">
+            <CoverMenuButton
+              coverColor={coverColor}
+              hasCover={Boolean(coverColor || coverImage)}
+              onPickColor={handleCoverColorChange}
+              onUploadImage={handleCoverImageUpload}
+              onRemove={handleRemoveCover}
+            />
+          </div>
 
           <LabelsSection cardId={card.id} boardId={boardId} onLabelsChange={onLabelsChange} />
 

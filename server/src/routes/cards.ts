@@ -11,6 +11,20 @@ export const cardsRouter = Router();
 const COVERS_DIR = path.join(DATA_DIR, "covers");
 mkdirSync(COVERS_DIR, { recursive: true });
 
+// Mirrors client/src/lib/covers.ts's GRADIENT_COVERS ids.
+const GRADIENT_COVERS = [
+  "gradient-sunset",
+  "gradient-ocean",
+  "gradient-forest",
+  "gradient-lavender",
+  "gradient-peach",
+  "gradient-midnight",
+] as const;
+
+function isCoverColor(value: unknown): value is string {
+  return isLabelColor(value) || (typeof value === "string" && (GRADIENT_COVERS as readonly string[]).includes(value));
+}
+
 const uploadCover = multer({
   storage: multer.diskStorage({
     destination: COVERS_DIR,
@@ -102,8 +116,8 @@ cardsRouter.patch("/cards/:id", (req, res) => {
     due_date?: string | null;
     cover_color?: string | null;
   };
-  if (cover_color !== undefined && cover_color !== null && !isLabelColor(cover_color)) {
-    res.status(400).json({ error: "cover_color doit être une couleur valide" });
+  if (cover_color !== undefined && cover_color !== null && !isCoverColor(cover_color)) {
+    res.status(400).json({ error: "cover_color doit être une couleur ou un dégradé valide" });
     return;
   }
   if (title !== undefined) {
