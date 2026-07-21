@@ -1,6 +1,9 @@
 services:
   app:
-    build: .
+    image: ghcr.io/alist3rcode/kanbanstyle:latest
+    # Alternative si tu préfères builder depuis les sources (nécessite le
+    # dépôt cloné à côté de ce fichier, avec le Dockerfile) :
+    # build: .
     ports:
       - "3000:3000"
     environment:

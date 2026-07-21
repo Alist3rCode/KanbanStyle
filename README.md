@@ -29,12 +29,19 @@ Au premier démarrage, si `ADMIN_PASSWORD` n'est pas défini, un mot de passe es
 
 ## Déploiement (Docker)
 
+`docker-compose.yml` utilise l'image publiée automatiquement par la CI sur GitHub Container Registry à chaque push sur `main` — pas besoin de cloner le dépôt sur le serveur, seuls `docker-compose.yml` et `.env` sont nécessaires.
+
 ```bash
 cp .env.example .env   # renseigner ADMIN_PASSWORD, SESSION_SECRET et ENCRYPTION_KEY
-docker compose up -d --build
+docker compose up -d
 ```
 
 L'application est alors disponible sur http://localhost:3000. Les données (base SQLite, pièces jointes, images de couverture) sont persistées dans le volume `kanbanstyle-data`.
+
+**Le paquet `ghcr.io/alist3rcode/kanbanstyle` est privé par défaut.** Avant le premier déploiement, choisir l'une des deux options :
+
+- Rendre le paquet public une fois : sur GitHub, `Packages` → `kanbanstyle` → `Package settings` → `Change visibility` → `Public`.
+- Ou s'authentifier sur le serveur avec un [token d'accès personnel](https://github.com/settings/tokens) ayant le scope `read:packages` : `docker login ghcr.io -u <utilisateur-github>`.
 
 Variables d'environnement (`.env`) :
 
@@ -45,7 +52,9 @@ Variables d'environnement (`.env`) :
 | `SESSION_SECRET` | Secret de signature des cookies de session. Une longue chaîne aléatoire. |
 | `ENCRYPTION_KEY` | Chiffre le coffre-fort de secrets (token Jira). À garder stable entre redéploiements, sous peine de rendre les secrets déjà enregistrés illisibles. |
 
-Pour mettre à jour une instance existante : `git pull && docker compose up -d --build`. Les migrations SQLite s'appliquent automatiquement au démarrage du conteneur.
+Pour mettre à jour une instance existante : `docker compose pull && docker compose up -d`. Les migrations SQLite s'appliquent automatiquement au démarrage du conteneur.
+
+Pour builder depuis les sources à la place (sur une machine avec le dépôt cloné), décommenter `build: .` dans `docker-compose.yml` à la place de `image:`.
 
 ## Stack technique
 
