@@ -1066,11 +1066,21 @@ export function CardEditor({
       setSlashOpen(false);
       return;
     }
+    const trimmedKey = key.trim();
     setJiraError(null);
     try {
-      const issue = await jiraApi.getIssue(key.trim());
+      const issue = await jiraApi.getIssue(trimmedKey);
       insertAtCursor(`[${issue.key}: ${issue.summary}](${issue.url}) `);
+      return;
     } catch (err) {
+      // The server may not have network access to Jira (different network/firewall) even
+      // though the client's own browser does — fall back to a plain link built from the
+      // configured domain, so at least clicking through still works.
+      const config = await jiraApi.getConfig().catch(() => null);
+      if (config?.domain) {
+        insertAtCursor(`[${trimmedKey}](https://${config.domain}/browse/${trimmedKey}) `);
+        return;
+      }
       setJiraError(err instanceof Error ? err.message : "Erreur Jira");
       setSlashOpen(false);
     }
