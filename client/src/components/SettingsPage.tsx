@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Monitor, Moon, Sun } from "lucide-react";
-import { jiraApi, type JiraIssue } from "@/lib/jira";
+import { jiraApi, type JiraAuthType, type JiraIssue, type JiraTestResult } from "@/lib/jira";
 import type { Theme } from "@/lib/theme";
 import { Button } from "@/components/ui/button";
 import { TopBar, topBarButtonClass } from "@/components/TopBar";
@@ -54,11 +54,22 @@ function ThemeSettings({
   );
 }
 
+const JIRA_AUTH_TYPE_OPTIONS: { value: JiraAuthType; label: string }[] = [
+  { value: "cloud", label: "Jira Cloud" },
+  { value: "server", label: "Jira Server / Data Center" },
+];
+
 function JiraSettings() {
   const [domain, setDomain] = useState("");
+  const [authType, setAuthType] = useState<JiraAuthType>("cloud");
+  const [email, setEmail] = useState("");
   const [token, setToken] = useState("");
   const [configured, setConfigured] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  const [connectionResult, setConnectionResult] = useState<JiraTestResult | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [checkingConnection, setCheckingConnection] = useState(false);
 
   const [testKey, setTestKey] = useState("");
   const [testResult, setTestResult] = useState<JiraIssue | null>(null);
@@ -68,17 +79,22 @@ function JiraSettings() {
   useEffect(() => {
     jiraApi.getConfig().then((config) => {
       setDomain(config.domain ?? "");
+      setAuthType(config.authType);
+      setEmail(config.email ?? "");
       setConfigured(config.configured);
     });
   }, []);
 
   async function handleSave() {
     setMessage(null);
+    setConnectionResult(null);
+    setConnectionError(null);
     try {
-      await jiraApi.setConfig(domain.trim(), token.trim());
+      await jiraApi.setConfig(domain.trim(), authType, email.trim(), token.trim());
       setConfigured(true);
       setToken("");
       setMessage("Configuration enregistrée.");
+      await handleTestConnection();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Erreur lors de l'enregistrement");
     }
@@ -87,9 +103,25 @@ function JiraSettings() {
   async function handleClear() {
     await jiraApi.clearConfig();
     setDomain("");
+    setEmail("");
     setToken("");
     setConfigured(false);
     setMessage(null);
+    setConnectionResult(null);
+    setConnectionError(null);
+  }
+
+  async function handleTestConnection() {
+    setCheckingConnection(true);
+    setConnectionError(null);
+    setConnectionResult(null);
+    try {
+      setConnectionResult(await jiraApi.testConnection());
+    } catch (err) {
+      setConnectionError(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setCheckingConnection(false);
+    }
   }
 
   async function handleTest() {
@@ -111,15 +143,46 @@ function JiraSettings() {
   return (
     <Section title="Intégration Jira">
       <div className="flex flex-col gap-2">
+        <div className="inline-flex self-start rounded-lg border border-border p-1">
+          {JIRA_AUTH_TYPE_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setAuthType(option.value)}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                authType === option.value
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
         <input
           className={inputClass}
           placeholder="entreprise.atlassian.net"
           value={domain}
           onChange={(e) => setDomain(e.currentTarget.value)}
         />
+        {authType === "cloud" && (
+          <input
+            className={inputClass}
+            placeholder="vous@entreprise.com"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.currentTarget.value)}
+          />
+        )}
         <input
           className={inputClass}
-          placeholder={configured ? "•••••••• (déjà enregistré)" : "Bearer token"}
+          placeholder={
+            configured
+              ? "•••••••• (déjà enregistré)"
+              : authType === "cloud"
+                ? "Token API (id.atlassian.com/manage-profile/security/api-tokens)"
+                : "Personal Access Token"
+          }
           type="password"
           value={token}
           onChange={(e) => setToken(e.currentTarget.value)}
@@ -127,12 +190,24 @@ function JiraSettings() {
         <div className="flex gap-2">
           <Button onClick={handleSave}>Enregistrer</Button>
           {configured && (
-            <Button variant="ghost" onClick={handleClear}>
-              Supprimer
-            </Button>
+            <>
+              <Button variant="outline" onClick={handleTestConnection} disabled={checkingConnection}>
+                Tester la connexion
+              </Button>
+              <Button variant="ghost" onClick={handleClear}>
+                Supprimer
+              </Button>
+            </>
           )}
         </div>
         {message && <p className="text-sm text-muted-foreground">{message}</p>}
+        {connectionError && <p className="text-sm text-destructive">{connectionError}</p>}
+        {connectionResult && (
+          <p className="text-sm text-emerald-600 dark:text-emerald-400">
+            Connecté en tant que {connectionResult.displayName}
+            {connectionResult.emailAddress ? ` (${connectionResult.emailAddress})` : ""}.
+          </p>
+        )}
       </div>
 
       {configured && (
