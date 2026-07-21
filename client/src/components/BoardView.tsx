@@ -358,7 +358,7 @@ function ColumnContainer({
         }`}
       >
         <input
-          className={`min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-sm font-semibold outline-none focus-visible:bg-background focus-visible:text-foreground ${headerTextClass}`}
+          className={`min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${headerTextClass}`}
           defaultValue={column.title}
           onBlur={(e) => onRename(e.currentTarget.value)}
           onPointerDown={(e) => e.stopPropagation()}
